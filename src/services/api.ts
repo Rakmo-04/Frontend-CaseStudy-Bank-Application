@@ -8,6 +8,7 @@ import {
 } from '../Models/Kyc';
 import { Account } from '../Models/Account';
 import { Page, Transaction } from '../Models/transaction';
+import { SupportTicket } from '../Models/SupportTicket';
 
 // API Configuration and Base Setup
 const API_BASE_URL = getApiBaseUrl();
@@ -544,16 +545,20 @@ async getRecentTransactions(accountId: number) {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    console.log("Support ticket created");
   }
 
   async getCustomerTickets(params?: {
-    status?: string;
-    page?: number;
-    size?: number;
-  }) {
-    const queryString = params ? '?' + new URLSearchParams(params as any).toString() : '';
-    return this.makeRequest(`/api/support/tickets${queryString}`);
-  }
+  status?: string;
+  page?: number;
+  size?: number;
+}): Promise<SupportTicket[]> {
+  const queryString = params
+    ? "?" + new URLSearchParams(params as any).toString()
+    : "";
+    console.log("Fetching customer tickets with params:", params);
+  return this.makeRequest(`/api/support/tickets${queryString}`);
+}
 
   async getTicketDetails(ticketId: string) {
     return this.makeRequest(`/api/support/tickets/${ticketId}`);
