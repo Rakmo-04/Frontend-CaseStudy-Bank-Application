@@ -103,10 +103,25 @@ class EnhancedApiService {
     );
   }
   
+  async updateCustomerProfile(data: any) {
+    return this.executeWithFallback(
+      () => apiService.updateCustomerProfile(data),
+      async () => {
+        // For mock, simulate updating and return updated customer data
+        console.log('Mock update profile with data:', data);
+        return mockApiService.getCurrentCustomer();
+      },
+      'updateCustomerProfile'
+    );
+  }
+  
   async getUserAccounts() {
     return this.executeWithFallback(
       () => apiService.getUserAccounts(),
-      () => mockApiService.getUserAccounts(),
+      async () => {
+        const response = await mockApiService.getUserAccounts();
+        return response.content; // Extract content array for proper typing
+      },
       'getUserAccounts'
     );
   }
@@ -122,8 +137,66 @@ class EnhancedApiService {
   async getKYCStatus() {
     return this.executeWithFallback(
       () => apiService.getKYCStatus(),
-      () => mockApiService.getKYCStatus(),
+      async () => {
+        const response = await mockApiService.getKYCStatus();
+        return response.kycStatus; // Extract just the status string
+      },
       'getKYCStatus'
+    );
+  }
+  
+  async getMyKYCDocuments() {
+    return this.executeWithFallback(
+      () => apiService.getMyKYCDocuments(),
+      async () => {
+        const response = await mockApiService.getKYCStatus();
+        return {
+          documents: response.documents.map((doc: any) => ({
+            documentId: `DOC_${Date.now()}_${doc.documentType}`,
+            documentType: doc.documentType,
+            originalFilename: `${doc.documentType.toLowerCase()}.pdf`,
+            uploadTimestamp: doc.uploadedAt,
+            verificationStatus: doc.status,
+            verificationNotes: 'Mock document for testing',
+            fileSize: 1024000
+          })),
+          kycStatus: response.kycStatus,
+          count: response.documents.length
+        };
+      },
+      'getMyKYCDocuments'
+    );
+  }
+  
+  async uploadAadharDocument(file: File) {
+    return this.executeWithFallback(
+      () => apiService.uploadAadharDocument(file),
+      async () => {
+        // Mock successful upload
+        return {
+          message: 'AADHAR document uploaded successfully',
+          documentId: `DOC_${Date.now()}`,
+          documentType: 'AADHAR',
+          kycStatus: 'UNDER_REVIEW'
+        };
+      },
+      'uploadAadharDocument'
+    );
+  }
+  
+  async uploadPanDocument(file: File) {
+    return this.executeWithFallback(
+      () => apiService.uploadPanDocument(file),
+      async () => {
+        // Mock successful upload
+        return {
+          message: 'PAN document uploaded successfully',
+          documentId: `DOC_${Date.now()}`,
+          documentType: 'PAN',
+          kycStatus: 'UNDER_REVIEW'
+        };
+      },
+      'uploadPanDocument'
     );
   }
   
@@ -187,6 +260,15 @@ class EnhancedApiService {
   // Utility methods - delegate to original API service
   getTokenManager() {
     return apiService.getTokenManager();
+  }
+  
+  // File download methods
+  async downloadAadharDocument(documentId: string) {
+    return apiService.downloadAadharDocument(documentId);
+  }
+  
+  async downloadPanDocument(documentId: string) {
+    return apiService.downloadPanDocument(documentId);
   }
   
   isAuthenticated() {

@@ -33,40 +33,75 @@ export default function AccountsView({ user }: AccountsViewProps) {
       try {
         const response = await apiService.getUserAccounts();
 
-        const transformedAccounts = (response || []).map((account: any) => ({
-          id: account.accountId,
-          type: account.accountType,
-          name:
-            account.accountType === 'Savings'
-              ? 'Savings Account'
-              : account.accountType === 'Current'
-                ? 'Current Account'
-                : 'Checking Account',
-          balance: account.balance,
-          accountNumber:
-            account.accountNumber ||
-            `${account.accountId.toString().padStart(4, '0')} •••• •••• ••••`,
-          routingNumber: 'WTFB0001234',
-          status: account.accountStatus || 'Active',
-          interestRate:
-            account.interestRate ||
-            (account.accountType === 'Savings' ? 6.5 : 3.5),
-          icon:
-            account.accountType === 'Savings'
-              ? PiggyBank
-              : account.accountType === 'Investment'
-                ? TrendingUp
-                : CreditCard,
-          color:
-            account.accountType === 'Savings'
-              ? 'bg-green-500'
-              : account.accountType === 'Investment'
-                ? 'bg-purple-500'
-                : 'bg-blue-500',
-          lastTransaction: account.lastTransactionDate || '2024-08-31',
-          monthlyActivity: Math.floor(Math.random() * 50) + 10,
-        }));
+        // For each account, fetch additional transaction data
+        const transformedAccounts = await Promise.all((response || []).map(async (account: any) => {
+          let monthlyActivity = 0;
+          let lastTransaction = null;
 
+          try {
+            // Fetch recent transactions to get real data
+            const recentTransactions = await apiService.getRecentTransactions(account.accountId) as any[];
+            
+            // Count transactions from this month
+            const currentMonth = new Date().getMonth();
+            const currentYear = new Date().getFullYear();
+            
+            if (Array.isArray(recentTransactions)) {
+              monthlyActivity = recentTransactions.filter((transaction: any) => {
+                const transactionDate = new Date(transaction.timestamp || transaction.createdAt);
+                return transactionDate.getMonth() === currentMonth && 
+                       transactionDate.getFullYear() === currentYear;
+              }).length;
+
+              // Get the most recent transaction
+              if (recentTransactions.length > 0) {
+                const sortedTransactions = recentTransactions.sort((a: any, b: any) => 
+                  new Date(b.timestamp || b.createdAt).getTime() - 
+                  new Date(a.timestamp || a.createdAt).getTime()
+                );
+                lastTransaction = sortedTransactions[0].timestamp || sortedTransactions[0].createdAt;
+              }
+            }
+          } catch (error) {
+            console.log(`No transactions found for account ${account.accountId}:`, error);
+            // Keep defaults: monthlyActivity = 0, lastTransaction = null
+          }
+
+          return {
+            id: account.accountId,
+            type: account.accountType,
+            name:
+              account.accountType === 'Savings'
+                ? 'Savings Account'
+                : account.accountType === 'Current'
+                  ? 'Current Account'
+                  : 'Checking Account',
+            balance: account.balance || 0,
+            accountNumber:
+              account.accountNumber ||
+              `ACC${account.accountId.toString().padStart(10, '0')}`,
+            routingNumber: account.routingNumber || 'WTFB0001234',
+            status: account.accountStatus || account.status || 'Active',
+            interestRate:
+              account.interestRate ||
+              (account.accountType === 'Savings' ? 4.5 : 2.5),
+            icon:
+              account.accountType === 'Savings'
+                ? PiggyBank
+                : account.accountType === 'Investment'
+                  ? TrendingUp
+                  : CreditCard,
+            color:
+              account.accountType === 'Savings'
+                ? 'bg-green-500'
+                : account.accountType === 'Investment'
+                  ? 'bg-purple-500'
+                  : 'bg-blue-500',
+            lastTransaction: lastTransaction,
+            monthlyActivity: monthlyActivity,
+            createdDate: account.createdDate || account.createdAt
+          };
+        }));
 
         setAccounts(transformedAccounts);
       } catch (error) {
@@ -106,41 +141,71 @@ export default function AccountsView({ user }: AccountsViewProps) {
 
       toast.success('Account created successfully!');
 
-      // Reload accounts
+      // Reload accounts with real data
       const response = await apiService.getUserAccounts();
+      const transformedAccounts = await Promise.all((response || []).map(async (account: any) => {
+        let monthlyActivity = 0;
+        let lastTransaction = null;
 
-      const transformedAccounts = (response || []).map((account: any) => ({
-        id: account.accountId,
-        type: account.accountType,
-        name:
-          account.accountType === 'Savings'
-            ? 'Savings Account'
-            : account.accountType === 'Current'
-              ? 'Current Account'
-              : 'Checking Account',
-        balance: account.balance,
-        accountNumber:
-          account.accountNumber ||
-          `${account.accountId.toString().padStart(4, '0')} •••• •••• ••••`,
-        routingNumber: 'WTFB0001234',
-        status: account.accountStatus || 'Active',
-        interestRate:
-          account.interestRate ||
-          (account.accountType === 'Savings' ? 6.5 : 3.5),
-        icon:
-          account.accountType === 'Savings'
-            ? PiggyBank
-            : account.accountType === 'Investment'
-              ? TrendingUp
-              : CreditCard,
-        color:
-          account.accountType === 'Savings'
-            ? 'bg-green-500'
-            : account.accountType === 'Investment'
-              ? 'bg-purple-500'
-              : 'bg-blue-500',
-        lastTransaction: account.lastTransactionDate || '2024-08-31',
-        monthlyActivity: Math.floor(Math.random() * 50) + 10,
+        try {
+          const recentTransactions = await apiService.getRecentTransactions(account.accountId) as any[];
+          
+          const currentMonth = new Date().getMonth();
+          const currentYear = new Date().getFullYear();
+          
+          if (Array.isArray(recentTransactions)) {
+            monthlyActivity = recentTransactions.filter((transaction: any) => {
+              const transactionDate = new Date(transaction.timestamp || transaction.createdAt);
+              return transactionDate.getMonth() === currentMonth && 
+                     transactionDate.getFullYear() === currentYear;
+            }).length;
+
+            if (recentTransactions.length > 0) {
+              const sortedTransactions = recentTransactions.sort((a: any, b: any) => 
+                new Date(b.timestamp || b.createdAt).getTime() - 
+                new Date(a.timestamp || a.createdAt).getTime()
+              );
+              lastTransaction = sortedTransactions[0].timestamp || sortedTransactions[0].createdAt;
+            }
+          }
+        } catch (error) {
+          console.log(`No transactions found for account ${account.accountId}:`, error);
+        }
+
+        return {
+          id: account.accountId,
+          type: account.accountType,
+          name:
+            account.accountType === 'Savings'
+              ? 'Savings Account'
+              : account.accountType === 'Current'
+                ? 'Current Account'
+                : 'Checking Account',
+          balance: account.balance || 0,
+          accountNumber:
+            account.accountNumber ||
+            `ACC${account.accountId.toString().padStart(10, '0')}`,
+          routingNumber: account.routingNumber || 'WTFB0001234',
+          status: account.accountStatus || account.status || 'Active',
+          interestRate:
+            account.interestRate ||
+            (account.accountType === 'Savings' ? 4.5 : 2.5),
+          icon:
+            account.accountType === 'Savings'
+              ? PiggyBank
+              : account.accountType === 'Investment'
+                ? TrendingUp
+                : CreditCard,
+          color:
+            account.accountType === 'Savings'
+              ? 'bg-green-500'
+              : account.accountType === 'Investment'
+                ? 'bg-purple-500'
+                : 'bg-blue-500',
+          lastTransaction: lastTransaction,
+          monthlyActivity: monthlyActivity,
+          createdDate: account.createdDate || account.createdAt
+        };
       }));
 
       //const response = await apiService.getUserAccounts();
@@ -485,14 +550,23 @@ export default function AccountsView({ user }: AccountsViewProps) {
                         </div>
                         <div className="p-3 bg-muted/50 rounded-lg">
                           <p className="text-sm font-medium">Monthly Activity</p>
-                          <p className="text-sm text-muted-foreground">{account.monthlyActivity} transactions</p>
+                          <p className="text-sm text-muted-foreground">
+                            {account.monthlyActivity} transaction{account.monthlyActivity !== 1 ? 's' : ''}
+                          </p>
                         </div>
                       </div>
 
                       <div className="p-3 bg-muted/50 rounded-lg">
                         <div>
                           <p className="text-sm font-medium">Last Transaction</p>
-                          <p className="text-sm text-muted-foreground">{new Date(account.lastTransaction).toLocaleDateString('en-IN')}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {account.lastTransaction 
+                              ? new Date(account.lastTransaction).toLocaleDateString('en-IN')
+                              : account.createdDate 
+                                ? `Account created ${new Date(account.createdDate).toLocaleDateString('en-IN')}`
+                                : 'No transactions yet'
+                            }
+                          </p>
                         </div>
                       </div>
                     </div>
