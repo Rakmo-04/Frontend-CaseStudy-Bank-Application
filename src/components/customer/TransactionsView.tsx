@@ -10,7 +10,7 @@ import { Calendar } from '../ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
-import { Search, Filter, Download, Mail, Calendar as CalendarIcon, TrendingUp, TrendingDown, ArrowUpDown } from 'lucide-react';
+import { Search, Filter, Download, Mail, Calendar as CalendarIcon, TrendingUp, TrendingDown, ArrowUpDown, RefreshCw } from 'lucide-react';
 // Removed date-fns import and using simple date formatting
 import { toast } from 'sonner';
 import { apiService } from '../../services/api';
@@ -29,54 +29,136 @@ export default function TransactionsView({ user }: TransactionsViewProps) {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // const transactions = [
-  //   { id: 1, type: 'credit', description: 'Salary Deposit', amount: 425000.00, date: '2024-08-31', category: 'Income', account: 'Checking', status: 'Completed', reference: 'SAL240831001' },
-  //   { id: 2, type: 'debit', description: 'House Rent Payment', amount: -102000.00, date: '2024-08-31', category: 'Housing', account: 'Checking', status: 'Completed', reference: 'RENT240831002' },
-  //   { id: 3, type: 'debit', description: 'Big Bazaar Grocery', amount: -10750.50, date: '2024-08-30', category: 'Groceries', account: 'Checking', status: 'Completed', reference: 'POS240830003' },
-  //   { id: 4, type: 'transfer', description: 'Transfer to Emergency Fund', amount: -50000.00, date: '2024-08-30', category: 'Transfer', account: 'Checking', status: 'Completed', reference: 'TXN240830004' },
-  //   { id: 5, type: 'credit', description: 'Mutual Fund SIP Return', amount: 19825.75, date: '2024-08-29', category: 'Investment', account: 'Investment', status: 'Completed', reference: 'INV240829005' },
-  //   { id: 6, type: 'debit', description: 'Netflix Subscription', amount: -1349.00, date: '2024-08-29', category: 'Entertainment', account: 'Checking', status: 'Completed', reference: 'SUB240829006' },
-  //   { id: 7, type: 'debit', description: 'Petrol - Indian Oil', amount: -3825.00, date: '2024-08-28', category: 'Transportation', account: 'Checking', status: 'Completed', reference: 'POS240828007' },
-  //   { id: 8, type: 'credit', description: 'Freelance Consulting', amount: 63500.00, date: '2024-08-28', category: 'Income', account: 'Checking', status: 'Completed', reference: 'NEFT240828008' },
-  //   { id: 9, type: 'debit', description: 'Swiggy Food Order', amount: -5735.00, date: '2024-08-27', category: 'Dining', account: 'Checking', status: 'Completed', reference: 'UPI240827009' },
-  //   { id: 10, type: 'debit', description: 'Airtel Mobile Recharge', amount: -7650.00, date: '2024-08-26', category: 'Bills', account: 'Checking', status: 'Completed', reference: 'PAY240826010' },
-  //   { id: 11, type: 'debit', description: 'Metro Card Recharge', amount: -2000.00, date: '2024-08-26', category: 'Transportation', account: 'Checking', status: 'Pending', reference: 'MET240826011' },
-  //   { id: 12, type: 'credit', description: 'Interest Credit - Savings', amount: 15420.50, date: '2024-08-25', category: 'Interest', account: 'Savings', status: 'Completed', reference: 'INT240825012' }
-  // ];
+  const categories = ['all', 'Income', 'Expense', 'Transfer', 'Investment', 'Bills', 'Entertainment', 'Transportation', 'Dining', 'Housing', 'Groceries', 'Interest'];
 
-  const categories = ['all', 'Income', 'Housing', 'Groceries', 'Entertainment', 'Transportation', 'Dining', 'Bills', 'Investment', 'Transfer', 'Interest'];
-
-  useEffect(() => {
-  if (!user?.accountId) {
-    console.warn("No accountId provided for transactions.");
-    setTransactions([]);
-    setLoading(false);
-    return;
-  }
-
+  // Function to fetch transactions (extracted for reuse)
   const fetchTransactions = async () => {
+    setRefreshing(true);
+    
     try {
       setLoading(true);
-      const res = await apiService.getTransactionsByAccount(user.accountId, 0, 20);
-      console.log('Fetched transactions:', res);
-      setTransactions(res.content || []);
+      setError(null);
+      
+      // Get user accounts first
+      const accounts = await apiService.getUserAccounts();
+      
+      if (!accounts || accounts.length === 0) {
+        console.warn("No accounts found for user.");
+        setError("No accounts found. Please contact customer support.");
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+      
+      // Use the first account
+      const accountId = accounts[0].accountId;
+      console.log('Fetching transactions for accountId:', accountId);
+      
+      // Apply filters based on active tab and date range
+      let response;
+      
+      if (activeTab !== 'all' && ['credit', 'debit', 'transfer'].includes(activeTab)) {
+        // Filter by transaction type
+        response = await apiService.getTransactionsByType(accountId, activeTab as any, 0, 50);
+      } else if (dateRange.from && dateRange.to) {
+        // Filter by date range
+        const fromDate = dateRange.from.toISOString().split('T')[0];
+        const toDate = dateRange.to.toISOString().split('T')[0];
+        response = await apiService.getTransactionsByDateRange(accountId, fromDate, toDate, 0, 50);
+      } else {
+        // Get all transactions
+        response = await apiService.getTransactionsByAccount(accountId, 0, 50);
+      }
+      
+      console.log('Fetched transactions:', response);
+      
+      if (response && response.content && Array.isArray(response.content)) {
+        // Transform the data to match our component's expectations
+        const transformedTransactions = response.content.map(transaction => ({
+          id: transaction.transactionId || transaction.id,
+          type: transaction.transactionType?.toLowerCase() || 'debit',
+          description: transaction.description || 'Transaction',
+          amount: transaction.amount || 0,
+          date: new Date(transaction.transactionDate || transaction.timestamp).toLocaleDateString() || new Date().toLocaleDateString(),
+          category: transaction.transactionType === 'credit' ? 'Income' : 
+                   transaction.transactionType === 'transfer' ? 'Transfer' : 'Expense',
+          account: 'Primary Account',
+          status: transaction.transactionStatus || 'Completed',
+          reference: transaction.referenceNumber || `TXN${transaction.transactionId || transaction.id}`,
+          // Add additional fields from API for more context
+          recipientAccountId: transaction.recipientAccountId,
+          transactionFee: transaction.transactionFee,
+          remarks: transaction.remarks
+        }));
+        
+        setTransactions(transformedTransactions);
+        toast.success(`Loaded ${transformedTransactions.length} transactions`);
+      } else if (response && response.transactions && Array.isArray(response.transactions)) {
+        // Alternative response format
+        const transformedTransactions = response.transactions.map((transaction: any) => ({
+          id: transaction.transactionId || transaction.id,
+          type: transaction.transactionType?.toLowerCase() || 'debit',
+          description: transaction.description || 'Transaction',
+          amount: transaction.amount || 0,
+          date: new Date(transaction.transactionDate || transaction.timestamp).toLocaleDateString() || new Date().toLocaleDateString(),
+          category: transaction.transactionType === 'credit' ? 'Income' : 
+                   transaction.transactionType === 'transfer' ? 'Transfer' : 'Expense',
+          account: 'Primary Account',
+          status: transaction.transactionStatus || 'Completed',
+          reference: transaction.referenceNumber || `TXN${transaction.transactionId || transaction.id}`,
+          // Add additional fields from API for more context
+          recipientAccountId: transaction.recipientAccountId,
+          transactionFee: transaction.transactionFee,
+          remarks: transaction.remarks
+        }));
+        
+        setTransactions(transformedTransactions);
+        toast.success(`Loaded ${transformedTransactions.length} transactions`);
+      } else {
+        setTransactions([]);
+        toast.info('No transactions found for the selected criteria');
+      }
     } catch (err: any) {
+      console.error('Error fetching transactions:', err);
       setError(err.message || "Failed to load transactions");
+      setTransactions([]);
+      toast.error('Failed to load transactions');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
-  fetchTransactions();
-}, [user?.accountId]);
+
+  const handleRefresh = async () => {
+    toast.info('Refreshing transactions...');
+    await fetchTransactions();
+  };
+
+  // Fetch transactions when user, active tab, or date range changes
+  useEffect(() => {
+    fetchTransactions();
+  }, [user?.accountId, user?.id, activeTab]);
 
 
   const filteredTransactions = transactions.filter(transaction => {
-    const matchesSearch = transaction.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesTab = activeTab === 'all' || 
-                      (activeTab === 'credit' && transaction.amount > 0) ||
-                      (activeTab === 'debit' && transaction.amount < 0) ||
-                      (activeTab === 'transfer' && transaction.type === 'transfer');
+    // Match search term in description or remarks
+    const matchesSearch = (transaction.description?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                          (transaction.remarks?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+    
+    // Improved tab filtering logic
+    const isTransfer = transaction.type === 'transfer';
+    const isCredit = transaction.type === 'credit';
+    const isDebit = transaction.type === 'debit';
+    
+    const matchesTab = 
+      activeTab === 'all' || 
+      (activeTab === 'credit' && isCredit) ||
+      (activeTab === 'debit' && isDebit) ||
+      (activeTab === 'transfer' && isTransfer);
+    
+    // Category filtering
     const matchesCategory = selectedCategory === 'all' || transaction.category === selectedCategory;
     
     return matchesSearch && matchesTab && matchesCategory;
@@ -92,42 +174,82 @@ export default function TransactionsView({ user }: TransactionsViewProps) {
   };
 
   const downloadPassbook = async () => {
-    if (!user?.accountId) return toast.error("No accountId available");
+    const accountId = user?.accountId || user?.id;
+    if (!accountId) {
+      toast.error("Account information not available");
+      return;
+    }
 
     try {
       const params: any = {};
       if (dateRange.from) params.fromDate = dateRange.from.toISOString().split('T')[0];
       if (dateRange.to) params.toDate = dateRange.to.toISOString().split('T')[0];
 
-      const blob = await apiService.downloadPassbook(user.accountId, params);
+      const blob = await apiService.downloadPassbook(accountId, params);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `passbook_${user.accountId}.pdf`;
+      a.download = `passbook_${accountId}_${new Date().toISOString().split('T')[0]}.pdf`;
       a.click();
+      window.URL.revokeObjectURL(url);
       toast.success("Passbook downloaded successfully!");
     } catch (err: any) {
       console.error(err);
-      toast.error("Failed to download passbook");
+      toast.error("Failed to download passbook: " + (err.message || "Unknown error"));
     }
   };
 
-  
+  const emailPassbook = async () => {
+    const accountId = user?.accountId || user?.id;
+    if (!accountId) {
+      toast.error("Account information not available");
+      return;
+    }
 
-  const emailPassbook = () => {
-    toast.success('Passbook sent to your email');
+    try {
+      const params: any = {};
+      if (dateRange.from) params.fromDate = dateRange.from.toISOString().split('T')[0];
+      if (dateRange.to) params.toDate = dateRange.to.toISOString().split('T')[0];
+
+      await apiService.emailPassbook(accountId, params);
+      toast.success('Passbook sent to your email address');
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Failed to email passbook: " + (err.message || "Unknown error"));
+    }
   };
 
-  const getTransactionIcon = (type: string) => {
-    if (type === 'credit') return <TrendingUp className="h-4 w-4 text-green-600" />;
-    if (type === 'debit') return <TrendingDown className="h-4 w-4 text-red-600" />;
+  const getTransactionIcon = (transaction: any) => {
+    // For transfers, we need to check if this is outgoing (debit) or incoming (credit)
+    const isTransfer = transaction.type === 'transfer';
+    const isCredit = transaction.type === 'credit';
+    const isDebit = transaction.type === 'debit' || isTransfer; // Treat transfers as debits
+    
+    if (isCredit) return <TrendingUp className="h-4 w-4 text-green-600" />;
+    if (isDebit) return <TrendingDown className="h-4 w-4 text-red-600" />;
     return <ArrowUpDown className="h-4 w-4 text-blue-600" />;
   };
 
-  const getAmountColor = (amount: number) => {
-    if (amount > 0) return 'text-green-600';
-    if (amount < 0) return 'text-red-600';
+  const getAmountColor = (transaction: any) => {
+    // For transfers, we need to check if this is outgoing (debit) or incoming (credit)
+    const isTransfer = transaction.type === 'transfer';
+    const isCredit = transaction.type === 'credit';
+    const isDebit = transaction.type === 'debit' || isTransfer; // Treat transfers as debits
+    
+    if (isCredit) return 'text-green-600';
+    if (isDebit) return 'text-red-600';
     return 'text-blue-600';
+  };
+
+  const formatTransactionAmount = (transaction: any) => {
+    // For transfers, we need to check if this is outgoing (debit) or incoming (credit)
+    const isTransfer = transaction.type === 'transfer';
+    const isCredit = transaction.type === 'credit';
+    const isDebit = transaction.type === 'debit' || isTransfer; // Treat transfers as debits
+    
+    const amount = Math.abs(transaction.amount);
+    const prefix = isCredit ? '+' : '-';
+    return `${prefix}₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
   };
 
   return (
@@ -229,9 +351,18 @@ export default function TransactionsView({ user }: TransactionsViewProps) {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="all">All Transactions</TabsTrigger>
-          <TabsTrigger value="credit">Credits</TabsTrigger>
-          <TabsTrigger value="debit">Debits</TabsTrigger>
-          <TabsTrigger value="transfer">Transfers</TabsTrigger>
+          <TabsTrigger value="credit">
+            <TrendingUp className="h-4 w-4 mr-2 text-green-600" />
+            Credits (In)
+          </TabsTrigger>
+          <TabsTrigger value="debit">
+            <TrendingDown className="h-4 w-4 mr-2 text-red-600" />
+            Debits (Out)
+          </TabsTrigger>
+          <TabsTrigger value="transfer">
+            <ArrowUpDown className="h-4 w-4 mr-2 text-blue-600" />
+            Transfers
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="space-y-4">
@@ -249,6 +380,15 @@ export default function TransactionsView({ user }: TransactionsViewProps) {
                     {filteredTransactions.length} transactions found
                   </CardDescription>
                 </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                  {refreshing ? 'Refreshing...' : 'Refresh'}
+                </Button>
               </div>
             </CardHeader>
             <CardContent>
@@ -289,34 +429,74 @@ export default function TransactionsView({ user }: TransactionsViewProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredTransactions.map((transaction) => (
-                    <motion.tr
-                      key={transaction.id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="hover:bg-muted/50 transition-colors"
-                    >
-                      <TableCell>
-                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted">
-                          {getTransactionIcon(transaction.type)}
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">
+                        <div className="flex items-center justify-center space-x-2">
+                          <div className="w-4 h-4 border-2 border-accent/30 border-t-accent rounded-full animate-spin"></div>
+                          <span>Loading transactions...</span>
                         </div>
                       </TableCell>
-                      <TableCell className="font-medium">{transaction.description}</TableCell>
-                      <TableCell className={`font-medium ${getAmountColor(transaction.amount)}`}>
-                        {transaction.amount > 0 ? '+' : ''}₹{Math.abs(transaction.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </TableRow>
+                  ) : error ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-red-600">
+                        {error}
                       </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{transaction.category}</Badge>
+                    </TableRow>
+                  ) : filteredTransactions.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">
+                        <p className="text-muted-foreground">No transactions found matching your criteria.</p>
                       </TableCell>
-                      <TableCell>{transaction.account}</TableCell>
-                      <TableCell>{transaction.date}</TableCell>
-                      <TableCell>
-                        <Badge variant={transaction.status === 'Completed' ? 'default' : 'secondary'}>
-                          {transaction.status}
-                        </Badge>
-                      </TableCell>
-                    </motion.tr>
-                  ))}
+                    </TableRow>
+                  ) : (
+                    filteredTransactions.map((transaction) => (
+                      <motion.tr
+                        key={transaction.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="hover:bg-muted/50 transition-colors"
+                      >
+                        <TableCell>
+                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted">
+                            {getTransactionIcon(transaction)}
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {transaction.description}
+                          {transaction.remarks && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {transaction.remarks}
+                            </div>
+                          )}
+                          {transaction.recipientAccountId && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              To Account: {transaction.recipientAccountId}
+                            </div>
+                          )}
+                          {transaction.transactionFee > 0 && (
+                            <div className="text-xs text-amber-600 mt-1">
+                              Fee: ₹{transaction.transactionFee.toFixed(2)}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className={`font-medium ${getAmountColor(transaction)}`}>
+                          {formatTransactionAmount(transaction)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{transaction.category}</Badge>
+                        </TableCell>
+                        <TableCell>{transaction.account}</TableCell>
+                        <TableCell>{transaction.date}</TableCell>
+                        <TableCell>
+                          <Badge variant={transaction.status.toLowerCase() === 'completed' ? 'default' : 'secondary'}>
+                            {transaction.status}
+                          </Badge>
+                        </TableCell>
+                      </motion.tr>
+                    ))
+                  )}
                 </TableBody>
               </Table>
 

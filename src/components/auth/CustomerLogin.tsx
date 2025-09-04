@@ -34,13 +34,29 @@ export default function CustomerLogin({ onNavigate, onLogin }: CustomerLoginProp
       // Fetch complete customer profile
       const customerProfile = await apiService.getCurrentCustomer();
       
+      // Fetch user's accounts to get the primary account ID
+      let accountId = response.accountId;
+      if (!accountId) {
+        try {
+          const accounts = await apiService.getUserAccounts();
+          if (accounts && accounts.length > 0) {
+            accountId = accounts[0].accountId; // Use first account as primary
+          }
+        } catch (accountError) {
+          console.warn('Could not fetch accounts:', accountError);
+        }
+      }
+      
       const user = {
         id: response.customerId,
         name: `${customerProfile.firstName} ${customerProfile.lastName}`,
         type: 'customer',
-        accountId: response.accountId,
+        accountId: accountId,
+        customerId: response.customerId,
         ...customerProfile
       };
+      
+      console.log('User object after login:', user);
       
       onLogin(user);
       toast.success('Successfully logged in!');

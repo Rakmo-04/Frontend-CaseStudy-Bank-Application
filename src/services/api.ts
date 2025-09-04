@@ -356,8 +356,22 @@ async getKYCStatus() {
   
   // Account APIs
   async getUserAccounts(): Promise<Account[]> {
-  return this.makeRequest<Account[]>('/api/accounts');
-}
+    return this.makeRequest<Account[]>('/api/accounts');
+  }
+
+  async getAccountById(accountId: number): Promise<Account> {
+    return this.makeRequest<Account>(`/api/accounts/${accountId}`);
+  }
+
+  async getAccountBalance(accountId: number): Promise<{ balance: number; accountId: number; lastUpdated: string }> {
+    return this.makeRequest(`/api/accounts/${accountId}/balance`);
+  }
+
+  async refreshAccountBalance(accountId: number): Promise<Account> {
+    return this.makeRequest<Account>(`/api/accounts/${accountId}/refresh`, {
+      method: 'POST'
+    });
+  }
 
   async createAccount(data: { accountType: string; initialDeposit?: number }) {
     return this.makeRequest('/api/accounts/create', {
@@ -368,11 +382,17 @@ async getKYCStatus() {
 
   // Transaction APIs
   async createTransaction(data: {
-    sourceAccountId: number;
-    destinationAccountId?: number;
+    accountId: number;
+    transactionType: 'credit' | 'debit' | 'transfer';
     amount: number;
-    transactionType: string;
     description?: string;
+    mode?: string;
+    recipientAccountId?: number;
+    bankName?: string;
+    ifscCode?: string;
+    initiatedBy?: string;
+    transactionFee?: number;
+    remarks?: string;
   }) {
     return this.makeRequest('/api/transactions/create', {
       method: 'POST',
@@ -438,6 +458,68 @@ async getPassbook(
  */
 async getRecentTransactions(accountId: number) {
   return this.makeRequest(`/api/transactions/account/${accountId}/recent`);
+}
+
+/**
+ * Get mini statement (last 5 transactions)
+ */
+async getMiniStatement(accountId: number) {
+  return this.makeRequest(`/api/transactions/account/${accountId}/mini-statement`);
+}
+
+/**
+ * Download passbook as PDF
+ */
+async downloadPassbookPDF(accountId: number, fromDate?: string, toDate?: string): Promise<Blob> {
+  const url = `/api/transactions/account/${accountId}/passbook/download${fromDate && toDate ? `?fromDate=${fromDate}&toDate=${toDate}` : ''}`;
+  const token = this.tokenManager.getToken();
+  
+  const response = await fetch(`${API_BASE_URL}${url}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to download passbook PDF');
+  }
+  
+  return response.blob();
+}
+
+/**
+ * Email passbook PDF to registered or custom email
+ */
+async emailPassbookPDF(accountId: number, fromDate?: string, toDate?: string, emailAddress?: string) {
+  const params = new URLSearchParams();
+  if (fromDate) params.append('fromDate', fromDate);
+  if (toDate) params.append('toDate', toDate);
+  if (emailAddress) params.append('emailAddress', emailAddress);
+  
+  const url = `/api/transactions/account/${accountId}/passbook/email${params.toString() ? `?${params.toString()}` : ''}`;
+  return this.makeRequest(url, { method: 'POST' });
+}
+
+/**
+ * Preview passbook PDF in browser
+ */
+async previewPassbookPDF(accountId: number, fromDate?: string, toDate?: string): Promise<Blob> {
+  const url = `/api/transactions/account/${accountId}/passbook/preview${fromDate && toDate ? `?fromDate=${fromDate}&toDate=${toDate}` : ''}`;
+  const token = this.tokenManager.getToken();
+  
+  const response = await fetch(`${API_BASE_URL}${url}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to preview passbook PDF');
+  }
+  
+  return response.blob();
 }
 
 

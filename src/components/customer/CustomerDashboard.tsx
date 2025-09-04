@@ -11,7 +11,7 @@ import KYCView from './KYCView';
 import SupportView from './SupportView';
 import ProfileView from './ProfileView';
 import DashboardOverview from './DashboardOverview';
-import EnhancedFeatures from './EnhancedFeatures';
+import PaymentsAndMorePage from './PaymentsAndMorePage';
 
 interface CustomerDashboardProps {
   user: any;
@@ -25,7 +25,7 @@ export default function CustomerDashboard({ user, onLogout }: CustomerDashboardP
     { id: 'overview', label: 'Overview', icon: Home },
     { id: 'accounts', label: 'Accounts', icon: CreditCard },
     { id: 'transactions', label: 'Transactions', icon: Receipt },
-    { id: 'enhanced', label: 'Quick Actions', icon: Zap },
+    { id: 'enhanced', label: 'Payments & More', icon: Zap },
     { id: 'kyc', label: 'KYC Status', icon: FileCheck },
     { id: 'support', label: 'Support', icon: MessageSquare },
     { id: 'profile', label: 'Profile', icon: Settings }
@@ -40,7 +40,7 @@ export default function CustomerDashboard({ user, onLogout }: CustomerDashboardP
       case 'transactions':
         return <TransactionsView user={user} />;
       case 'enhanced':
-        return <EnhancedFeatures user={user} />;
+        return <PaymentsAndMorePage user={user} />;
       case 'kyc':
         return <KYCView user={user} />;
       case 'support':

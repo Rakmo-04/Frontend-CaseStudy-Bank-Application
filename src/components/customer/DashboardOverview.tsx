@@ -6,24 +6,172 @@ import { Badge } from '../ui/badge';
 import { Progress } from '../ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, TrendingDown, Plus, Send, Download, CreditCard, Wallet, PiggyBank, Eye, EyeOff, RefreshCw, Bell, Target, Calendar, ArrowUpRight, ArrowDownRight, Zap, Shield } from 'lucide-react';
+import { TrendingUp, TrendingDown, Plus, Send, Download, CreditCard, Wallet, PiggyBank, Eye, EyeOff, RefreshCw, Bell, Target, Calendar, ArrowUpRight, ArrowDownRight, Zap, Shield, Minus, AlertCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { TransferMoneyDialog, AddMoneyDialog, WithdrawMoneyDialog } from './TransactionDialogs.tsx';
+import PaymentsAndMoreCard from './PaymentsAndMoreCard';
+import LiveBalanceCard from './LiveBalanceCard';
+import { apiService } from '../../services/api';
 
 interface DashboardOverviewProps {
   user: any;
+  onTransactionComplete?: () => void;
 }
 
-export default function DashboardOverview({ user }: DashboardOverviewProps) {
+export default function DashboardOverview({ user, onTransactionComplete }: DashboardOverviewProps) {
   const [showBalance, setShowBalance] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [realAccounts, setRealAccounts] = useState<any[]>([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [realTransactions, setRealTransactions] = useState<any[]>([]);
+  const [loadingTransactions, setLoadingTransactions] = useState(false);
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
 
+  // Fallback mock accounts if API fails
   const accounts = [
     { id: 1, type: 'Checking', name: 'Primary Checking', balance: 1047832.50, accountNumber: '****1234', change: +2.3 },
     { id: 2, type: 'Savings', name: 'Emergency Fund', balance: 3785420.75, accountNumber: '****5678', change: +5.1 },
     { id: 3, type: 'Investment', name: 'Growth Portfolio', balance: 7456821.25, accountNumber: '****9012', change: +12.8 }
   ];
+
+  // Function to fetch real account data
+  const fetchRealAccounts = async () => {
+    setLoadingAccounts(true);
+    try {
+      const accountsData = await apiService.getUserAccounts();
+      console.log('Fetched real accounts:', accountsData);
+      
+      if (Array.isArray(accountsData)) {
+        setRealAccounts(accountsData);
+        
+        if (accountsData.length > 0) {
+          // If we have accounts, let's also fetch their balances to ensure they're up to date
+          try {
+            const firstAccount = accountsData[0];
+            const accountId = firstAccount.accountId;
+            const accountDetails = await apiService.getAccountById(accountId);
+            
+            if (accountDetails) {
+              console.log('Fetched account details:', accountDetails);
+              // Update the first account with the latest balance
+              const updatedAccounts = [...accountsData];
+              updatedAccounts[0] = {
+                ...updatedAccounts[0],
+                balance: accountDetails.balance || updatedAccounts[0].balance
+              };
+              setRealAccounts(updatedAccounts);
+            }
+          } catch (detailsError) {
+            console.error('Failed to fetch account details:', detailsError);
+            // Continue with the accounts we already have
+          }
+        }
+      } else {
+        console.warn('Unexpected accounts data format:', accountsData);
+        toast.error('Received unexpected account data format from API');
+      }
+    } catch (error) {
+      console.error('Failed to fetch accounts:', error);
+      toast.error('Failed to load account information');
+    } finally {
+      setLoadingAccounts(false);
+    }
+  };
+  
+  // Function to fetch real transaction data
+  const fetchRealTransactions = async () => {
+    setLoadingTransactions(true);
+    try {
+      // First get accounts to get the first account ID
+      const accounts = await apiService.getUserAccounts();
+      
+      if (accounts && accounts.length > 0) {
+        const accountId = accounts[0].accountId;
+        // Get recent transactions
+        const response = await apiService.getRecentTransactions(accountId);
+        
+        console.log('API response for transactions:', response);
+        
+        if (response && (response as any).transactions) {
+          console.log('Fetched real transactions:', (response as any).transactions);
+          setRealTransactions((response as any).transactions);
+        } else if (response && Array.isArray(response)) {
+          // Handle case where API returns an array directly
+          console.log('Fetched real transactions (array):', response);
+          setRealTransactions(response);
+        } else if (response && (response as any).content && Array.isArray((response as any).content)) {
+          // Handle paginated response format
+          console.log('Fetched real transactions (paginated):', (response as any).content);
+          setRealTransactions((response as any).content);
+        } else {
+          console.warn('Unexpected response format:', response);
+          toast.error('Received unexpected data format from API');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch transactions:', error);
+      toast.error('Failed to load recent transactions');
+    } finally {
+      setLoadingTransactions(false);
+    }
+  };
+
+  // Function to fetch analytics data
+  const fetchAnalyticsData = async () => {
+    setLoadingAnalytics(true);
+    try {
+      // First get accounts to get the first account ID
+      const accounts = await apiService.getUserAccounts();
+      
+      if (accounts && accounts.length > 0) {
+        const accountId = accounts[0].accountId;
+        
+        // Get date range for last 90 days
+        const toDate = new Date();
+        const fromDate = new Date();
+        fromDate.setDate(fromDate.getDate() - 90);
+        
+        const fromDateStr = fromDate.toISOString().split('T')[0];
+        const toDateStr = toDate.toISOString().split('T')[0];
+        
+        // Get transaction statistics
+        const statistics = await apiService.getTransactionStatistics(
+          accountId, 
+          fromDateStr,
+          toDateStr
+        );
+        
+        console.log('Fetched analytics data:', statistics);
+        setAnalyticsData(statistics);
+      }
+    } catch (error) {
+      console.error('Failed to fetch analytics:', error);
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  };
+
+  // Effect to fetch real accounts and transactions on component mount
+  useEffect(() => {
+    fetchRealAccounts();
+    fetchRealTransactions();
+    fetchAnalyticsData();
+  }, []);
+
+  // Handle transaction completion
+  const handleTransactionComplete = () => {
+    // Refresh all dashboard data
+    fetchRealAccounts();
+    fetchRealTransactions();
+    fetchAnalyticsData();
+    setLastUpdated(new Date());
+    if (onTransactionComplete) {
+      onTransactionComplete();
+    }
+  };
 
   const recentTransactions = [
     { id: 1, type: 'debit', description: 'Cafe Coffee Day', amount: -415.00, date: '2024-08-31', category: 'Food & Dining', status: 'completed' },
@@ -73,16 +221,36 @@ export default function DashboardOverview({ user }: DashboardOverviewProps) {
     return () => clearInterval(interval);
   }, []);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      setIsRefreshing(false);
+    try {
+      await Promise.all([
+        fetchRealAccounts(),
+        fetchRealTransactions(),
+        fetchAnalyticsData()
+      ]);
       setLastUpdated(new Date());
-      toast.success('Account data refreshed');
-    }, 1500);
+      toast.success('Dashboard data refreshed');
+    } catch (error) {
+      toast.error('Failed to refresh dashboard data');
+    } finally {
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, 1500);
+    }
   };
 
-  const totalBalance = accounts.reduce((sum, account) => sum + account.balance, 0);
+  // Use real accounts if available, otherwise fallback to mock data
+  const displayAccounts = realAccounts.length > 0 ? realAccounts.map(account => ({
+    id: account.accountId,
+    type: account.accountType,
+    name: `${account.accountType} Account`,
+    balance: account.balance,
+    accountNumber: `****${account.accountNumber.slice(-4)}`,
+    change: Math.random() * 10 - 5 // Random change for demo
+  })) : accounts;
+
+  const totalBalance = displayAccounts.reduce((sum, account) => sum + account.balance, 0);
 
   return (
     <div className="space-y-6">
@@ -115,67 +283,107 @@ export default function DashboardOverview({ user }: DashboardOverviewProps) {
         </div>
       </div>
 
-      {/* Account Balance Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowBalance(!showBalance)}
-                className="h-8 w-8 p-0"
-              >
-                {showBalance ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {showBalance ? `₹${totalBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '••••••'}
+      {/* Live Balance Card - Real-time data from API */}
+      {loadingAccounts ? (
+        <Card className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-center space-x-4">
+              <RefreshCw className="h-8 w-8 animate-spin" />
+              <div>
+                <h3 className="text-xl font-bold">Loading Balance...</h3>
+                <p className="text-blue-100">Fetching your latest account information</p>
               </div>
-              <p className="text-xs text-muted-foreground flex items-center">
-                <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
-                +12.5% from last month
-              </p>
-            </CardContent>
-          </Card>
-        </motion.div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : realAccounts.length === 0 ? (
+        <Card className="bg-gradient-to-r from-amber-500 to-amber-600 text-white">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <AlertCircle className="h-8 w-8" />
+                <div>
+                  <h3 className="text-xl font-bold">Welcome to WTF Bank!</h3>
+                  <p className="text-amber-100">Let's set up your first account to get started</p>
+                </div>
+              </div>
+              <Button
+                onClick={handleRefresh}
+                variant="secondary"
+                size="sm"
+                className="bg-white text-amber-700 hover:bg-amber-50"
+              >
+                {isRefreshing ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                {isRefreshing ? 'Checking...' : 'Create Account'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <LiveBalanceCard user={user} refreshTrigger={lastUpdated.getTime()} />
+      )}
 
-        {accounts.map((account, index) => (
-          <motion.div
-            key={account.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 + index * 0.1 }}
-          >
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{account.type}</CardTitle>
-                {account.type === 'Checking' && <CreditCard className="h-4 w-4 text-muted-foreground" />}
-                {account.type === 'Savings' && <PiggyBank className="h-4 w-4 text-muted-foreground" />}
-                {account.type === 'Investment' && <TrendingUp className="h-4 w-4 text-muted-foreground" />}
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {showBalance ? `₹${account.balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '••••••'}
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-muted-foreground">{account.accountNumber}</p>
-                  <div className={`flex items-center text-xs ${account.change > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {account.change > 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                    {account.change > 0 ? '+' : ''}{account.change}%
+      {/* Account Details Cards */}
+      {displayAccounts.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {displayAccounts.map((account, index) => (
+            <motion.div
+              key={account.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 + index * 0.1 }}
+            >
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardHeader className="px-6 pt-6 pb-2 flex flex-row items-center justify-between space-y-0">
+                  <CardTitle className="text-sm font-medium">{account.type}</CardTitle>
+                  {account.type === 'Checking' && <CreditCard className="h-4 w-4 text-muted-foreground" />}
+                  {account.type === 'Savings' && <PiggyBank className="h-4 w-4 text-muted-foreground" />}
+                  {account.type === 'Investment' && <TrendingUp className="h-4 w-4 text-muted-foreground" />}
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {showBalance ? `₹${account.balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '••••••'}
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
-      </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">{account.accountNumber}</p>
+                    <div className={`flex items-center text-xs ${account.change > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {account.change > 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                      {account.change > 0 ? '+' : ''}{account.change.toFixed(1)}%
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </div>
+      ) : !loadingAccounts ? (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {['Checking', 'Savings', 'Investment'].map((type, index) => (
+            <motion.div
+              key={type}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 + index * 0.1 }}
+            >
+              <Card className="hover:shadow-lg transition-shadow border-dashed border-2">
+                <CardHeader className="px-6 pt-6 pb-2 flex flex-row items-center justify-between space-y-0">
+                  <CardTitle className="text-sm font-medium">{type}</CardTitle>
+                  {type === 'Checking' && <CreditCard className="h-4 w-4 text-muted-foreground" />}
+                  {type === 'Savings' && <PiggyBank className="h-4 w-4 text-muted-foreground" />}
+                  {type === 'Investment' && <TrendingUp className="h-4 w-4 text-muted-foreground" />}
+                </CardHeader>
+                <CardContent className="flex flex-col items-center justify-center py-8 text-center">
+                  <p className="text-muted-foreground mb-4">No {type} Account</p>
+                  <Button variant="outline" size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Open {type} Account
+                  </Button>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </div>
+      ) : null}
 
       {/* Charts and Analytics Section */}
       <Tabs defaultValue="overview" className="w-full">
@@ -342,115 +550,133 @@ export default function DashboardOverview({ user }: DashboardOverviewProps) {
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Financial Health Score</CardTitle>
-                <CardDescription>Based on your spending patterns</CardDescription>
-              </CardHeader>
-              <CardContent className="text-center">
-                <div className="text-4xl font-bold text-green-600 mb-2">8.5</div>
-                <div className="text-sm text-muted-foreground mb-4">Excellent</div>
-                <Progress value={85} className="h-3 mb-4" />
-                <div className="text-xs text-muted-foreground">
-                  Great savings rate and spending control
-                </div>
-              </CardContent>
-            </Card>
+          {loadingAnalytics ? (
+            <div className="flex items-center justify-center py-12">
+              <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground mr-3" />
+              <span className="text-lg text-muted-foreground">Loading analytics data...</span>
+            </div>
+          ) : analyticsData ? (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Financial Health Score</CardTitle>
+                  <CardDescription>Based on your spending patterns</CardDescription>
+                </CardHeader>
+                <CardContent className="text-center">
+                  {/* Calculate a health score based on credit-to-debit ratio */}
+                  {(() => {
+                    const totalCredits = analyticsData.totalCredits || 0;
+                    const totalDebits = analyticsData.totalDebits || 0;
+                    const ratio = totalDebits > 0 ? totalCredits / totalDebits : 1;
+                    // Score between 1-10, higher is better
+                    const score = Math.min(10, Math.max(1, Math.round(ratio * 5 * 10) / 10));
+                    const scorePercent = score * 10;
+                    
+                    let scoreText = 'Poor';
+                    let scoreColor = 'text-red-600';
+                    
+                    if (score >= 8) {
+                      scoreText = 'Excellent';
+                      scoreColor = 'text-green-600';
+                    } else if (score >= 6) {
+                      scoreText = 'Good';
+                      scoreColor = 'text-blue-600';
+                    } else if (score >= 4) {
+                      scoreText = 'Average';
+                      scoreColor = 'text-amber-600';
+                    }
+                    
+                    return (
+                      <>
+                        <div className={`text-4xl font-bold ${scoreColor} mb-2`}>{score.toFixed(1)}</div>
+                        <div className="text-sm text-muted-foreground mb-4">{scoreText}</div>
+                        <Progress value={scorePercent} className="h-3 mb-4" />
+                        <div className="text-xs text-muted-foreground">
+                          {ratio >= 1 ? 'Income exceeds expenses' : 'Expenses exceed income'}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Monthly Savings Rate</CardTitle>
-                <CardDescription>Percentage of income saved</CardDescription>
-              </CardHeader>
-              <CardContent className="text-center">
-                <div className="text-4xl font-bold text-accent mb-2">35%</div>
-                <div className="text-sm text-muted-foreground mb-4">Above Average</div>
-                <div className="flex items-center justify-center text-green-600 text-sm">
-                  <TrendingUp className="h-4 w-4 mr-1" />
-                  +5% from last month
-                </div>
-              </CardContent>
-            </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Monthly Savings Rate</CardTitle>
+                  <CardDescription>Percentage of income saved</CardDescription>
+                </CardHeader>
+                <CardContent className="text-center">
+                  {(() => {
+                    const totalCredits = analyticsData.totalCredits || 0;
+                    const totalDebits = analyticsData.totalDebits || 0;
+                    // Calculate savings rate
+                    const savingsRate = totalCredits > 0 
+                      ? Math.round(((totalCredits - totalDebits) / totalCredits) * 100) 
+                      : 0;
+                    
+                    // Determine if it's positive or negative
+                    const isPositive = savingsRate > 0;
+                    const displayRate = Math.abs(savingsRate);
+                    
+                    let rateText = 'Below Average';
+                    if (savingsRate >= 30) rateText = 'Excellent';
+                    else if (savingsRate >= 20) rateText = 'Above Average';
+                    else if (savingsRate >= 10) rateText = 'Average';
+                    
+                    return (
+                      <>
+                        <div className={`text-4xl font-bold ${isPositive ? 'text-accent' : 'text-red-600'} mb-2`}>
+                          {isPositive ? '' : '-'}{displayRate}%
+                        </div>
+                        <div className="text-sm text-muted-foreground mb-4">{rateText}</div>
+                        <div className={`flex items-center justify-center ${isPositive ? 'text-green-600' : 'text-red-600'} text-sm`}>
+                          {isPositive ? <TrendingUp className="h-4 w-4 mr-1" /> : <TrendingDown className="h-4 w-4 mr-1" />}
+                          {isPositive ? 'Saving' : 'Spending'} {displayRate}% of income
+                        </div>
+                      </>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Investment Growth</CardTitle>
-                <CardDescription>Portfolio performance</CardDescription>
-              </CardHeader>
-              <CardContent className="text-center">
-                <div className="text-4xl font-bold text-green-600 mb-2">+12.8%</div>
-                <div className="text-sm text-muted-foreground mb-4">This Year</div>
-                <div className="flex items-center justify-center text-green-600 text-sm">
-                  <TrendingUp className="h-4 w-4 mr-1" />
-                  Outperforming market
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Transaction Activity</CardTitle>
+                  <CardDescription>Last 90 days summary</CardDescription>
+                </CardHeader>
+                <CardContent className="text-center">
+                  <div className="text-4xl font-bold text-blue-600 mb-2">
+                    {analyticsData.totalTransactions || 0}
+                  </div>
+                  <div className="text-sm text-muted-foreground mb-4">Total Transactions</div>
+                  <div className="flex items-center justify-center gap-4">
+                    <div className="flex items-center text-green-600 text-sm">
+                      <TrendingUp className="h-4 w-4 mr-1" />
+                      {analyticsData.totalCreditTransactions || 0} Credits
+                    </div>
+                    <div className="flex items-center text-red-600 text-sm">
+                      <TrendingDown className="h-4 w-4 mr-1" />
+                      {analyticsData.totalDebitTransactions || 0} Debits
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground mb-4">No analytics data available</p>
+              <Button variant="outline" onClick={fetchAnalyticsData}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Load Analytics Data
+              </Button>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
       {/* Quick Actions and Recent Transactions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="lg:col-span-1"
-        >
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5 text-accent" />
-                Quick Actions
-              </CardTitle>
-              <CardDescription>Common banking operations</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Button 
-                className="w-full justify-start" 
-                variant="outline"
-                onClick={() => toast.success('Transfer money feature coming soon!')}
-              >
-                <Send className="h-4 w-4 mr-2" />
-                Transfer Money
-              </Button>
-              <Button 
-                className="w-full justify-start" 
-                variant="outline"
-                onClick={() => toast.success('Add account feature coming soon!')}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Account
-              </Button>
-              <Button 
-                className="w-full justify-start" 
-                variant="outline"
-                onClick={() => toast.success('Statement download started!')}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Download Statement
-              </Button>
-              <Button 
-                className="w-full justify-start" 
-                variant="outline"
-                onClick={() => toast.success('Card request submitted!')}
-              >
-                <CreditCard className="h-4 w-4 mr-2" />
-                Request Card
-              </Button>
-              <Button 
-                className="w-full justify-start" 
-                variant="outline"
-                onClick={() => toast.success('Bill pay feature coming soon!')}
-              >
-                <Wallet className="h-4 w-4 mr-2" />
-                Pay Bills
-              </Button>
-            </CardContent>
-          </Card>
-        </motion.div>
+        <PaymentsAndMoreCard user={user} onTransactionComplete={handleTransactionComplete} />
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -459,7 +685,7 @@ export default function DashboardOverview({ user }: DashboardOverviewProps) {
           className="lg:col-span-2"
         >
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="px-6 pt-6 pb-4 flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <Bell className="h-5 w-5 text-accent" />
@@ -467,44 +693,98 @@ export default function DashboardOverview({ user }: DashboardOverviewProps) {
                 </CardTitle>
                 <CardDescription>Your latest financial activity</CardDescription>
               </div>
-              <Button variant="ghost" size="sm">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => {
+                  // Navigate to transactions tab
+                  const transactionsLink = document.querySelector('a[href="#transactions"]');
+                  if (transactionsLink) {
+                    (transactionsLink as HTMLElement).click();
+                  }
+                }}
+              >
                 View All
               </Button>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {recentTransactions.map((transaction) => (
-                  <div key={transaction.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group">
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        transaction.type === 'credit' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
-                      }`}>
-                        {transaction.type === 'credit' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                      </div>
-                      <div>
-                        <p className="font-medium group-hover:text-accent transition-colors">{transaction.description}</p>
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm text-muted-foreground">{transaction.category}</p>
-                          <Badge 
-                            variant={transaction.status === 'completed' ? 'default' : 'secondary'}
-                            className="text-xs"
-                          >
-                            {transaction.status}
-                          </Badge>
+              {loadingTransactions ? (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
+                  <span className="text-muted-foreground">Loading transactions...</span>
+                </div>
+              ) : realTransactions.length > 0 ? (
+                <div className="space-y-4">
+                  {realTransactions.slice(0, 6).map((transaction) => {
+                    // Handle different API response formats
+                    const txnType = transaction.transactionType?.toLowerCase() || 
+                                   transaction.type?.toLowerCase() || 'debit';
+                    
+                    const isCredit = txnType === 'credit';
+                    const isTransfer = txnType === 'transfer';
+                    // For transfers, we consider them as debits (money going out)
+                    const isDebit = txnType === 'debit' || isTransfer;
+                    const category = isCredit ? 'Income' : 
+                                   isTransfer ? 'Transfer' : 'Expense';
+                    
+                    const txnId = transaction.transactionId || transaction.id;
+                    const txnDescription = transaction.description || 'Transaction';
+                    const txnAmount = transaction.amount || 0;
+                    const txnDate = transaction.transactionDate || transaction.timestamp || transaction.date;
+                    const txnStatus = transaction.transactionStatus || transaction.status || 'Completed';
+                    const txnRecipient = transaction.recipientAccountId || transaction.recipientAccount;
+                    
+                    return (
+                      <div key={txnId} className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group">
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            isCredit ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+                          }`}>
+                            {isCredit ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                          </div>
+                          <div>
+                            <p className="font-medium group-hover:text-accent transition-colors">
+                              {txnDescription}
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm text-muted-foreground">{category}</p>
+                              <Badge 
+                                variant={txnStatus.toLowerCase() === 'completed' ? 'default' : 'secondary'}
+                                className="text-xs"
+                              >
+                                {txnStatus}
+                              </Badge>
+                              {txnRecipient && (
+                                <span className="text-xs text-muted-foreground">
+                                  To: {txnRecipient}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className={`font-medium ${
+                            isCredit ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {isCredit ? '+' : '-'}₹{Math.abs(txnAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(txnDate).toLocaleDateString('en-IN')}
+                          </p>
                         </div>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <p className={`font-medium ${
-                        transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {transaction.type === 'credit' ? '+' : ''}₹{Math.abs(transaction.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{new Date(transaction.date).toLocaleDateString('en-IN')}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">No recent transactions found</p>
+                  <Button variant="outline" size="sm" className="mt-4" onClick={fetchRealTransactions}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Refresh Transactions
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
