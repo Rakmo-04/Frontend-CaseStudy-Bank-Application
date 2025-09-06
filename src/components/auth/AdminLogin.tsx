@@ -6,8 +6,8 @@ import { Label } from '../ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Alert, AlertDescription } from '../ui/alert';
 import { ArrowLeft, Eye, EyeOff, Shield, Lock, Loader2 } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
-import { enhancedApiService as apiService } from '../../services/enhanced-api';
+import { toast } from 'sonner';
+import { apiService } from './../../services/api';
 import type { ApiError } from '../../services/api';
 
 interface AdminLoginProps {
@@ -26,7 +26,7 @@ export default function AdminLogin({ onNavigate, onLogin }: AdminLoginProps) {
     e.preventDefault();
     setIsLoading(true);
     setError('');
-
+    
     try {
       const response = await apiService.adminLogin({ username, password });
       
@@ -38,7 +38,7 @@ export default function AdminLogin({ onNavigate, onLogin }: AdminLoginProps) {
         role: response.role,
         permissions: ['kyc_management', 'support_management', 'analytics']
       };
-      
+
       onLogin(admin);
       toast.success('Admin login successful');
       onNavigate('admin-dashboard');

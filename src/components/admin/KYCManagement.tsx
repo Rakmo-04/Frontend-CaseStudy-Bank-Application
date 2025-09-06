@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -6,10 +6,11 @@ import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Avatar, AvatarFallback } from '../ui/avatar';
-import { Search, Filter, Eye, CheckCircle, XCircle, Clock, User, FileText, MapPin, Calendar } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { Search, Filter, Eye, CheckCircle, XCircle, Clock, User } from 'lucide-react';
+import { toast } from 'sonner';
+import { apiService } from '../../services/api';
 
 interface KYCManagementProps {
   user: any;
@@ -19,84 +20,31 @@ export default function KYCManagement({ user }: KYCManagementProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [filterStatus, setFilterStatus] = useState('all');
+  const [kycRequests, setKycRequests] = useState<any[]>([]);
+  const [selectedDocument, setSelectedDocument] = useState<{ url: string; name: string } | null>(null);
 
-  const kycRequests = [
-    {
-      id: 'KYC-001',
-      userId: 'USR-1234',
-      name: 'John Doe',
-      email: 'john.doe@email.com',
-      phone: '+1-555-0123',
-      status: 'pending',
-      submittedAt: '2024-01-15',
-      documents: {
-        identity: { type: 'Passport', status: 'uploaded', url: '#' },
-        address: { type: 'Utility Bill', status: 'uploaded', url: '#' },
-        income: { type: 'Salary Slip', status: 'uploaded', url: '#' }
-      },
-      riskScore: 'Low',
-      notes: ''
-    },
-    {
-      id: 'KYC-002',
-      userId: 'USR-1235',
-      name: 'Jane Smith',
-      email: 'jane.smith@email.com',
-      phone: '+1-555-0124',
-      status: 'pending',
-      submittedAt: '2024-01-14',
-      documents: {
-        identity: { type: 'Driver License', status: 'uploaded', url: '#' },
-        address: { type: 'Bank Statement', status: 'uploaded', url: '#' },
-        income: { type: 'Tax Return', status: 'uploaded', url: '#' }
-      },
-      riskScore: 'Medium',
-      notes: 'Additional verification required for income documents'
-    },
-    {
-      id: 'KYC-003',
-      userId: 'USR-1236',
-      name: 'Mike Johnson',
-      email: 'mike.johnson@email.com',
-      phone: '+1-555-0125',
-      status: 'under_review',
-      submittedAt: '2024-01-13',
-      documents: {
-        identity: { type: 'Passport', status: 'uploaded', url: '#' },
-        address: { type: 'Rental Agreement', status: 'uploaded', url: '#' },
-        income: { type: 'Employment Letter', status: 'rejected', url: '#' }
-      },
-      riskScore: 'High',
-      notes: 'Income document needs to be more recent'
+  // Fetch KYC requests
+  const fetchKYCRequests = async () => {
+    try {
+      const data = await apiService.allKYCRequests();
+      if (data?.pendingKycRequests) {
+        setKycRequests(data.pendingKycRequests);
+      } else {
+        console.error('Unexpected KYC response structure:', data);
+        toast.error('Invalid response from server');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to fetch KYC requests');
     }
-  ];
+  };
 
-  const recentlyProcessed = [
-    {
-      id: 'KYC-004',
-      name: 'Sarah Wilson',
-      status: 'approved',
-      processedAt: '2024-01-15',
-      processedBy: 'Admin User'
-    },
-    {
-      id: 'KYC-005',
-      name: 'David Brown',
-      status: 'rejected',
-      processedAt: '2024-01-14',
-      processedBy: 'Admin User'
-    },
-    {
-      id: 'KYC-006',
-      name: 'Lisa Garcia',
-      status: 'approved',
-      processedAt: '2024-01-14',
-      processedBy: 'Admin User'
-    }
-  ];
+  useEffect(() => {
+    fetchKYCRequests();
+  }, []);
 
   const getStatusInfo = (status: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'pending':
         return { color: 'text-yellow-600', bg: 'bg-yellow-100', icon: Clock, label: 'Pending' };
       case 'under_review':
@@ -111,7 +59,7 @@ export default function KYCManagement({ user }: KYCManagementProps) {
   };
 
   const getRiskScoreColor = (score: string) => {
-    switch (score.toLowerCase()) {
+    switch (score?.toLowerCase()) {
       case 'low':
         return 'bg-green-100 text-green-800';
       case 'medium':
@@ -123,17 +71,43 @@ export default function KYCManagement({ user }: KYCManagementProps) {
     }
   };
 
-  const handleKYCAction = (requestId: string, action: 'approve' | 'reject', reason?: string) => {
-    const actionText = action === 'approve' ? 'approved' : 'rejected';
-    toast.success(`KYC request ${requestId} has been ${actionText}`);
-    setSelectedRequest(null);
+  const handleKYCAction = async (requestId: string, action: 'approve' | 'reject') => {
+    const isApprove = action === 'approve';
+    const body = {
+      kycStatus: isApprove ? 'VERIFIED' : 'REJECTED',
+      reason: isApprove
+        ? 'All documents verified successfully by admin'
+        : 'Documents were invalid or incomplete',
+    };
+
+    try {
+      await apiService.updateKYCStatus(Number(requestId), body);
+      toast.success(`KYC request ${requestId} has been ${isApprove ? 'approved' : 'rejected'}`);
+      setSelectedRequest(null);
+      fetchKYCRequests(); // Refresh list after updating
+    } catch (err) {
+      console.error('Failed to update KYC status:', err);
+      toast.error('Failed to update KYC status');
+    }
   };
 
-  const filteredRequests = kycRequests.filter(request => {
-    const matchesSearch = request.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         request.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         request.id.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterStatus === 'all' || request.status === filterStatus;
+  // Download document helper
+  const downloadDocument = async (doc: any) => {
+    if (doc.type.toLowerCase() === 'aadhar') {
+      return await apiService.downloadAadharDocument(doc.documentId);
+    } else if (doc.type.toLowerCase() === 'pan') {
+      return await apiService.downloadPanDocument(doc.documentId);
+    } else {
+      throw new Error('Unknown document type');
+    }
+  };
+
+  const filteredRequests = kycRequests.filter((request) => {
+    const matchesSearch =
+      request.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      request.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      request.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesFilter = filterStatus === 'all' || request.kycStatus?.toLowerCase() === filterStatus;
     return matchesSearch && matchesFilter;
   });
 
@@ -145,91 +119,11 @@ export default function KYCManagement({ user }: KYCManagementProps) {
           <h1 className="text-2xl font-bold text-foreground">KYC Management</h1>
           <p className="text-muted-foreground">Review and process customer verification requests</p>
         </div>
-        <div className="flex items-center space-x-3">
-          <Badge className="bg-yellow-100 text-yellow-800">
-            {kycRequests.filter(r => r.status === 'pending').length} Pending
-          </Badge>
-          <Badge className="bg-blue-100 text-blue-800">
-            {kycRequests.filter(r => r.status === 'under_review').length} Under Review
-          </Badge>
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">847</div>
-              <p className="text-xs text-muted-foreground">+12% from last month</p>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Review</CardTitle>
-              <Clock className="h-4 w-4 text-yellow-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">89</div>
-              <p className="text-xs text-muted-foreground">Awaiting action</p>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Approved Today</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">23</div>
-              <p className="text-xs text-muted-foreground">95.8% approval rate</p>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-        >
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg. Processing Time</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">2.3h</div>
-              <p className="text-xs text-muted-foreground">-15min from yesterday</p>
-            </CardContent>
-          </Card>
-        </motion.div>
       </div>
 
       <Tabs defaultValue="pending" className="space-y-4">
         <TabsList>
           <TabsTrigger value="pending">Pending Requests</TabsTrigger>
-          <TabsTrigger value="processed">Recently Processed</TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending" className="space-y-4">
@@ -240,7 +134,7 @@ export default function KYCManagement({ user }: KYCManagementProps) {
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search by name, email, or KYC ID..."
+                    placeholder="Search by name or email..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
@@ -274,23 +168,21 @@ export default function KYCManagement({ user }: KYCManagementProps) {
                   <TableRow>
                     <TableHead>Customer</TableHead>
                     <TableHead>KYC ID</TableHead>
-                    <TableHead>Risk Score</TableHead>
-                    <TableHead>Submitted</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredRequests.map((request, index) => {
-                    const statusInfo = getStatusInfo(request.status);
+                    const statusInfo = getStatusInfo(request.kycStatus);
                     const StatusIcon = statusInfo.icon;
 
                     return (
                       <motion.tr
-                        key={request.id}
+                        key={request.customerId}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        transition={{ delay: index * 0.1 }}
+                        transition={{ delay: index * 0.05 }}
                         className="hover:bg-muted/50 transition-colors cursor-pointer"
                         onClick={() => setSelectedRequest(request)}
                       >
@@ -298,26 +190,25 @@ export default function KYCManagement({ user }: KYCManagementProps) {
                           <div className="flex items-center space-x-3">
                             <Avatar>
                               <AvatarFallback>
-                                {request.name.split(' ').map(n => n[0]).join('')}
+                                {request.firstName?.[0]}
+                                {request.lastName?.[0]}
                               </AvatarFallback>
                             </Avatar>
                             <div>
-                              <p className="font-medium">{request.name}</p>
+                              <p className="font-medium">
+                                {request.firstName} {request.lastName}
+                              </p>
                               <p className="text-sm text-muted-foreground">{request.email}</p>
                             </div>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline">{request.id}</Badge>
+                          <Badge variant="outline">{request.customerId}</Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge className={getRiskScoreColor(request.riskScore)}>
-                            {request.riskScore}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{request.submittedAt}</TableCell>
-                        <TableCell>
-                          <div className={`flex items-center space-x-2 px-3 py-1 rounded-full ${statusInfo.bg} w-fit`}>
+                          <div
+                            className={`flex items-center space-x-2 px-3 py-1 rounded-full ${statusInfo.bg} w-fit`}
+                          >
                             <StatusIcon className={`w-4 h-4 ${statusInfo.color}`} />
                             <span className={`text-sm font-medium ${statusInfo.color}`}>
                               {statusInfo.label}
@@ -345,87 +236,69 @@ export default function KYCManagement({ user }: KYCManagementProps) {
             </CardContent>
           </Card>
         </TabsContent>
-
-        <TabsContent value="processed" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recently Processed</CardTitle>
-              <CardDescription>KYC requests processed in the last 7 days</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {recentlyProcessed.map((request, index) => {
-                  const statusInfo = getStatusInfo(request.status);
-                  const StatusIcon = statusInfo.icon;
-
-                  return (
-                    <motion.div
-                      key={request.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      className="flex items-center justify-between p-4 border rounded-lg"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div className={`w-10 h-10 rounded-full ${statusInfo.bg} flex items-center justify-center`}>
-                          <StatusIcon className={`w-5 h-5 ${statusInfo.color}`} />
-                        </div>
-                        <div>
-                          <p className="font-medium">{request.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            Processed by {request.processedBy} on {request.processedAt}
-                          </p>
-                        </div>
-                      </div>
-                      <Badge className={statusInfo.bg + ' ' + statusInfo.color}>
-                        {statusInfo.label}
-                      </Badge>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
 
-      {/* KYC Detail Modal */}
+      {/* Modal */}
       {selectedRequest && (
         <Dialog open={!!selectedRequest} onOpenChange={() => setSelectedRequest(null)}>
           <DialogContent className="sm:max-w-4xl">
             <DialogHeader>
-              <DialogTitle className="flex items-center space-x-3">
-                <span>KYC Review - {selectedRequest.name}</span>
-                <Badge variant="outline">{selectedRequest.id}</Badge>
+              <DialogTitle className="flex items-center justify-between">
+                <span>
+                  KYC Review - {selectedRequest.firstName} {selectedRequest.lastName}
+                </span>
+                <Badge variant="outline">{selectedRequest.customerId}</Badge>
               </DialogTitle>
-              <DialogDescription>
-                Review customer documents and make verification decision
-              </DialogDescription>
+              <DialogDescription>Review customer documents and take action</DialogDescription>
             </DialogHeader>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-4">
               {/* Customer Info */}
               <div className="space-y-4">
-                <div>
-                  <h4 className="font-semibold mb-3">Customer Information</h4>
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <User className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm">{selectedRequest.name}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm">{selectedRequest.email}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm">{selectedRequest.phone}</span>
-                    </div>
+                <h4 className="font-semibold mb-2">Customer Information</h4>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center space-x-2">
+                    <User className="w-4 h-4 text-muted-foreground" />
+                    <span className="flex justify-between">
+                      <div>
+                        <p className="font-semibold">Name: </p>
+                      </div>
+                      <div className="pl-2">
+                        {selectedRequest.firstName} {selectedRequest.lastName}
+                      </div>
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="flex justify-between">
+                      <div>
+                        <p className="font-semibold">Email: </p>
+                      </div>
+                      <div className="pl-2">{selectedRequest.email}</div>
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="flex justify-between">
+                      <div>
+                        <p className="font-semibold">Phone No: </p>
+                      </div>
+                      <div className="pl-2">{selectedRequest.phoneNumber}</div>
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="flex justify-between">
+                      <div>
+                        <p className="font-semibold">KYC Status: </p>
+                      </div>
+                      <div className="pl-2">{selectedRequest.kycStatus}</div>
+                    </span>
                   </div>
                 </div>
-                
+
+                {/* Risk Assessment */}
                 <div>
-                  <h4 className="font-semibold mb-3">Risk Assessment</h4>
-                  <Badge className={getRiskScoreColor(selectedRequest.riskScore)}>
-                    {selectedRequest.riskScore} Risk
+                  <h4 className="font-semibold mb-2">Risk Assessment</h4>
+                  <Badge className={getRiskScoreColor(selectedRequest.riskScore || 'low')}>
+                    {selectedRequest.riskScore || 'Low'} Risk
                   </Badge>
                 </div>
               </div>
@@ -434,56 +307,94 @@ export default function KYCManagement({ user }: KYCManagementProps) {
               <div className="lg:col-span-2 space-y-4">
                 <h4 className="font-semibold">Submitted Documents</h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {Object.entries(selectedRequest.documents).map(([type, doc]: [string, any]) => (
-                    <div key={type} className="border rounded-lg p-4">
+                  {(selectedRequest.kycDocuments || []).map((doc: any) => (
+                    <div key={doc.documentId} className="border rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
-                        <h5 className="font-medium capitalize">{type}</h5>
-                        <Badge 
-                          variant={doc.status === 'uploaded' ? 'default' : 'destructive'}
+                        <h5 className="font-medium capitalize">{doc.type}</h5>
+                        <Badge
+                          variant={
+                            doc.documentStatus?.toLowerCase() === 'uploaded' ? 'default' : 'destructive'
+                          }
                           className="text-xs"
                         >
-                          {doc.status}
+                          {doc.documentStatus}
                         </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground mb-3">{doc.type}</p>
-                      <Button variant="outline" size="sm" className="w-full">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            const blob = await downloadDocument(doc);
+                            const url = URL.createObjectURL(blob);
+                            setSelectedDocument({ url, name: doc.type });
+                          } catch (err) {
+                            toast.error('Failed to load document');
+                          }
+                        }}
+                      >
                         <Eye className="w-4 h-4 mr-1" />
                         View Document
                       </Button>
                     </div>
                   ))}
+                  {(!selectedRequest.kycDocuments || selectedRequest.kycDocuments.length === 0) && (
+                    <p className="text-sm text-muted-foreground">No documents submitted yet.</p>
+                  )}
                 </div>
+
+                {/* Inline PDF Viewer */}
+                {selectedDocument && (
+                  <div className="mt-4">
+                    <h4 className="font-semibold mb-2">Viewing Document: {selectedDocument.name}</h4>
+                    <iframe
+                      src={selectedDocument.url}
+                      title={selectedDocument.name}
+                      className="w-full h-[600px] border rounded-lg"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-2"
+                      onClick={() => setSelectedDocument(null)}
+                    >
+                      Close Viewer
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Notes */}
-            <div>
-              <h4 className="font-semibold mb-2">Review Notes</h4>
-              <p className="text-sm text-muted-foreground p-3 bg-muted rounded-lg">
-                {selectedRequest.notes || 'No additional notes provided.'}
-              </p>
-            </div>
-
-            {/* Actions */}
-            {selectedRequest.status !== 'approved' && selectedRequest.status !== 'rejected' && (
-              <div className="flex space-x-3">
-                <Button
-                  onClick={() => handleKYCAction(selectedRequest.id, 'approve')}
-                  className="flex-1 bg-green-600 hover:bg-green-700"
-                >
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Approve KYC
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={() => handleKYCAction(selectedRequest.id, 'reject')}
-                  className="flex-1"
-                >
-                  <XCircle className="w-4 h-4 mr-2" />
-                  Reject KYC
-                </Button>
+            {/* Review Notes */}
+            {selectedRequest.notes && (
+              <div className="mt-4">
+                <h4 className="font-semibold mb-2">Review Notes</h4>
+                <p className="text-sm text-muted-foreground p-3 bg-muted rounded-lg">{selectedRequest.notes}</p>
               </div>
             )}
+
+            {/* Action Buttons */}
+            {selectedRequest.kycStatus.toLowerCase() !== 'approved' &&
+              selectedRequest.kycStatus.toLowerCase() !== 'rejected' && (
+                <div className="flex space-x-3 mt-4">
+                  <Button
+                    onClick={() => handleKYCAction(selectedRequest.customerId, 'approve')}
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" /> Approve KYC
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => handleKYCAction(selectedRequest.customerId, 'reject')}
+                    className="flex-1"
+                  >
+                    <XCircle className="w-4 h-4 mr-2" /> Reject KYC
+                  </Button>
+                </div>
+              )}
           </DialogContent>
         </Dialog>
       )}

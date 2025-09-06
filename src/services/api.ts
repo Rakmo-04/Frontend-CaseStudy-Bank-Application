@@ -7,8 +7,6 @@ import {
   KYCUploadResponse,
 } from '../Models/Kyc';
 import { Account } from '../Models/Account';
-import { Page, Transaction } from '../Models/transaction';
-import { SupportTicket } from '../Models/SupportTicket';
 
 // API Configuration and Base Setup
 const API_BASE_URL = getApiBaseUrl();
@@ -102,7 +100,7 @@ class ApiService {
       if (!response.ok) {
         const errorData = await response.text();
         let errorMessage = 'An error occurred';
-        
+
         try {
           const parsedError = JSON.parse(errorData);
           errorMessage = parsedError.message || errorMessage;
@@ -120,7 +118,7 @@ class ApiService {
       if (contentType && contentType.includes('application/json')) {
         return await response.json();
       }
-      
+
       return response as any;
     } catch (error) {
       if (error instanceof TypeError) {
@@ -156,7 +154,7 @@ class ApiService {
       if (!response.ok) {
         const errorData = await response.text();
         let errorMessage = 'An error occurred';
-        
+
         try {
           const parsedError = JSON.parse(errorData);
           errorMessage = parsedError.message || errorMessage;
@@ -202,6 +200,7 @@ class ApiService {
   }) {
     return this.makeRequest('/auth/register/initiate', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
   }
@@ -209,6 +208,7 @@ class ApiService {
   async verifyEmailOTP(data: { email: string; otpCode: string }) {
     return this.makeRequest('/auth/register/verify-email', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
   }
@@ -237,6 +237,7 @@ class ApiService {
       kycStatus: string;
     }>('/auth/register/complete', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
 
@@ -257,6 +258,7 @@ class ApiService {
       ipAddress?: string;
     }>('/auth/login', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
 
@@ -268,6 +270,13 @@ class ApiService {
   }
 
   async adminLogin(data: { username: string; password: string }) {
+
+    console.log("Sending login request:", {
+      url: '/admin/auth/login',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: data,
+    });
     const response = await this.makeRequest<{
       token: string;
       adminId: number;
@@ -276,6 +285,7 @@ class ApiService {
       ipAddress?: string;
     }>('/admin/auth/login', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
 
@@ -289,7 +299,7 @@ class ApiService {
   async logout() {
     const tokenType = this.tokenManager.getTokenType();
     const endpoint = tokenType === 'admin' ? '/admin/auth/logout' : '/auth/logout';
-    
+
     try {
       await this.makeRequest(endpoint, { method: 'POST' });
     } finally {
@@ -300,8 +310,8 @@ class ApiService {
   // Customer APIs
   async getCurrentCustomer(): Promise<CustomerProfile> {
     console.log("getCurrentCustomer called");
-  return this.makeRequest('/api/customers/me');
-}
+    return this.makeRequest('/api/customers/me');
+  }
 
 
   async updateCustomerProfile(data: {
@@ -324,53 +334,39 @@ class ApiService {
   //   return this.makeRequest('/api/customers/kyc-status');
   // }
 
-    // =======================
+  // =======================
   // KYC APIs
   // =======================
 
   async getMyKYCDocuments() {
-  return this.makeRequest<MyDocumentsResponse>('/api/kyc/my-documents');
-}
-
-// async getKYCStatus() {
-//   var a = this.makeRequest<CustomerKYCStatusResponse>('/api/customers/kyc-status');
-//   console.log(a.text());
-//   return a;
-// }
-async getKYCStatus() {
-  const response = await fetch(`${API_BASE_URL}/api/customers/kyc-status`, {
-    headers: {
-      Authorization: `Bearer ${this.tokenManager.getToken()}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch KYC status');
+    return this.makeRequest<MyDocumentsResponse>('/api/kyc/my-documents');
   }
 
-  return response.text(); // ✅ backend sends plain text like "VERIFIED"
-}
+  // async getKYCStatus() {
+  //   var a = this.makeRequest<CustomerKYCStatusResponse>('/api/customers/kyc-status');
+  //   console.log(a.text());
+  //   return a;
+  // }
+  async getKYCStatus() {
+    const response = await fetch(`${API_BASE_URL}/api/customers/kyc-status`, {
+      headers: {
+        Authorization: `Bearer ${this.tokenManager.getToken()}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch KYC status');
+    }
+
+    return response.text(); // ✅ backend sends plain text like "VERIFIED"
+  }
 
 
 
-  
+
   // Account APIs
   async getUserAccounts(): Promise<Account[]> {
     return this.makeRequest<Account[]>('/api/accounts');
-  }
-
-  async getAccountById(accountId: number): Promise<Account> {
-    return this.makeRequest<Account>(`/api/accounts/${accountId}`);
-  }
-
-  async getAccountBalance(accountId: number): Promise<{ balance: number; accountId: number; lastUpdated: string }> {
-    return this.makeRequest(`/api/accounts/${accountId}/balance`);
-  }
-
-  async refreshAccountBalance(accountId: number): Promise<Account> {
-    return this.makeRequest<Account>(`/api/accounts/${accountId}/refresh`, {
-      method: 'POST'
-    });
   }
 
   async createAccount(data: { accountType: string; initialDeposit?: number }) {
@@ -382,147 +378,17 @@ async getKYCStatus() {
 
   // Transaction APIs
   async createTransaction(data: {
-    accountId: number;
-    transactionType: 'credit' | 'debit' | 'transfer';
+    sourceAccountId: number;
+    destinationAccountId?: number;
     amount: number;
+    transactionType: string;
     description?: string;
-    mode?: string;
-    recipientAccountId?: number;
-    bankName?: string;
-    ifscCode?: string;
-    initiatedBy?: string;
-    transactionFee?: number;
-    remarks?: string;
   }) {
     return this.makeRequest('/api/transactions/create', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
-
-  async getTransactionById(transactionId: number) {
-  return this.makeRequest(`/api/transactions/${transactionId}`);
-}
-
-async getTransactionsByAccount(accountId: number, page = 0, size = 10): Promise<Page<Transaction>> {
-  return this.makeRequest(`/api/transactions/account/${accountId}?page=${page}&size=${size}`);
-}
-
-async getTransactionsByDateRange(
-  accountId: number,
-  fromDate: string,
-  toDate: string,
-  page = 0,
-  size = 20
-) {
-  return this.makeRequest(
-    `/api/transactions/account/${accountId}/date-range?fromDate=${fromDate}&toDate=${toDate}&page=${page}&size=${size}`
-  );
-}
-
-async getTransactionsByType(
-  accountId: number,
-  type: 'credit' | 'debit' | 'transfer',
-  page = 0,
-  size = 10
-) {
-  return this.makeRequest(
-    `/api/transactions/account/${accountId}/type/${type}?page=${page}&size=${size}`
-  );
-}
-
-async getTransactionStatistics(
-  accountId: number,
-  fromDate: string,
-  toDate: string
-) {
-  return this.makeRequest(
-    `/api/transactions/account/${accountId}/statistics?fromDate=${fromDate}&toDate=${toDate}`
-  );
-}
-
-async getPassbook(
-  accountId: number,
-  fromDate: string,
-  toDate: string,
-  page = 0,
-  size = 50
-) {
-  return this.makeRequest(
-    `/api/transactions/account/${accountId}/passbook?fromDate=${fromDate}&toDate=${toDate}&page=${page}&size=${size}`
-  );
-}
-
-/**
- * Get recent transactions for account
- */
-async getRecentTransactions(accountId: number) {
-  return this.makeRequest(`/api/transactions/account/${accountId}/recent`);
-}
-
-/**
- * Get mini statement (last 5 transactions)
- */
-async getMiniStatement(accountId: number) {
-  return this.makeRequest(`/api/transactions/account/${accountId}/mini-statement`);
-}
-
-/**
- * Download passbook as PDF
- */
-async downloadPassbookPDF(accountId: number, fromDate?: string, toDate?: string): Promise<Blob> {
-  const url = `/api/transactions/account/${accountId}/passbook/download${fromDate && toDate ? `?fromDate=${fromDate}&toDate=${toDate}` : ''}`;
-  const token = this.tokenManager.getToken();
-  
-  const response = await fetch(`${API_BASE_URL}${url}`, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
-  });
-  
-  if (!response.ok) {
-    throw new Error('Failed to download passbook PDF');
-  }
-  
-  return response.blob();
-}
-
-/**
- * Email passbook PDF to registered or custom email
- */
-async emailPassbookPDF(accountId: number, fromDate?: string, toDate?: string, emailAddress?: string) {
-  const params = new URLSearchParams();
-  if (fromDate) params.append('fromDate', fromDate);
-  if (toDate) params.append('toDate', toDate);
-  if (emailAddress) params.append('emailAddress', emailAddress);
-  
-  const url = `/api/transactions/account/${accountId}/passbook/email${params.toString() ? `?${params.toString()}` : ''}`;
-  return this.makeRequest(url, { method: 'POST' });
-}
-
-/**
- * Preview passbook PDF in browser
- */
-async previewPassbookPDF(accountId: number, fromDate?: string, toDate?: string): Promise<Blob> {
-  const url = `/api/transactions/account/${accountId}/passbook/preview${fromDate && toDate ? `?fromDate=${fromDate}&toDate=${toDate}` : ''}`;
-  const token = this.tokenManager.getToken();
-  
-  const response = await fetch(`${API_BASE_URL}${url}`, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
-  });
-  
-  if (!response.ok) {
-    throw new Error('Failed to preview passbook PDF');
-  }
-  
-  return response.blob();
-}
-
-
 
   async getTransactionHistory(
     accountId: number,
@@ -551,11 +417,11 @@ async previewPassbookPDF(accountId: number, fromDate?: string, toDate?: string):
         Authorization: `Bearer ${this.tokenManager.getToken()}`,
       },
     });
-    
+
     if (!response.ok) {
       throw new Error('Failed to download passbook');
     }
-    
+
     return response.blob();
   }
 
@@ -574,12 +440,6 @@ async previewPassbookPDF(accountId: number, fromDate?: string, toDate?: string):
     });
   }
 
-  async searchTransactions(accountId: number, query: string, page = 0, size = 10) {
-  return this.makeRequest(
-    `/api/transactions/account/${accountId}/search?query=${query}&page=${page}&size=${size}`
-  );
-}
-
   // KYC APIs
   async uploadKYCDocument(documentType: string, file: File) {
     const formData = new FormData();
@@ -592,6 +452,59 @@ async previewPassbookPDF(accountId: number, fromDate?: string, toDate?: string):
   async getKYCDocumentStatus() {
     return this.makeRequest('/api/kyc/status');
   }
+
+async allKYCRequests() {
+  const url = `${API_BASE_URL}/admin/kyc/pending`;
+  const token = this.tokenManager.getToken();
+
+  if (!token) {
+    throw new Error('Admin is not authenticated. Please login first.');
+  }
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const text = await response.json();
+    throw new Error(`Failed to fetch pending KYC requests: ${text}`);
+  }
+
+  return response.json(); // Assuming backend returns JSON
+}
+
+async updateKYCStatus(id: number, data: { kycStatus: string; reason?: string }) {
+  const url = `${API_BASE_URL}/admin/kyc/update-status/${id}`;
+  const token = this.tokenManager.getToken();
+
+  if (!token) {
+    throw new Error('Admin is not authenticated. Please login first.');
+  }
+
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(
+      errorData.message || `Failed to update KYC status (HTTP ${response.status})`
+    );
+  }
+
+  return response.json(); // backend should return updated KYC object
+}
+
+
 
   // OTP APIs
   async sendOTP(data: {
@@ -627,20 +540,16 @@ async previewPassbookPDF(accountId: number, fromDate?: string, toDate?: string):
       method: 'POST',
       body: JSON.stringify(data),
     });
-    console.log("Support ticket created");
   }
 
   async getCustomerTickets(params?: {
-  status?: string;
-  page?: number;
-  size?: number;
-}): Promise<SupportTicket[]> {
-  const queryString = params
-    ? "?" + new URLSearchParams(params as any).toString()
-    : "";
-    console.log("Fetching customer tickets with params:", params);
-  return this.makeRequest(`/api/support/tickets${queryString}`);
-}
+    status?: string;
+    page?: number;
+    size?: number;
+  }) {
+    const queryString = params ? '?' + new URLSearchParams(params as any).toString() : '';
+    return this.makeRequest(`/api/support/tickets${queryString}`);
+  }
 
   async getTicketDetails(ticketId: string) {
     return this.makeRequest(`/api/support/tickets/${ticketId}`);
@@ -708,21 +617,21 @@ async previewPassbookPDF(accountId: number, fromDate?: string, toDate?: string):
   }
 
   async uploadAadharDocument(file: File) {
-  const formData = new FormData();
-  formData.append('file', file);
-  console.log("Uploading Aadhaar document...");
+    const formData = new FormData();
+    formData.append('file', file);
+    console.log("Uploading Aadhaar document...");
 
-  return this.makeFileRequest<KYCUploadResponse>('/api/kyc/upload/AADHAR', formData);
-}
+    return this.makeFileRequest<KYCUploadResponse>('/api/kyc/upload/AADHAR', formData);
+  }
 
-async uploadPanDocument(file: File) {
-  const formData = new FormData();
-  formData.append('file', file);
-  console.log("Uploading PAN document...");
-  return this.makeFileRequest<KYCUploadResponse>('/api/kyc/upload/PAN', formData);
-}
+  async uploadPanDocument(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    console.log("Uploading PAN document...");
+    return this.makeFileRequest<KYCUploadResponse>('/api/kyc/upload/PAN', formData);
+  }
 
-async downloadAadharDocument(aadharDocumentId: string) {
+  async downloadAadharDocument(aadharDocumentId: string) {
     const response = await fetch(
       `/api/kyc/download/${aadharDocumentId}`,
       {
