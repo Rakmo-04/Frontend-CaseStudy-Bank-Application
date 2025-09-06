@@ -1,17 +1,45 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
-import { Textarea } from '../ui/textarea';
-import { Badge } from '../ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { MessageSquare, Plus, Clock, CheckCircle, XCircle, AlertCircle, Phone, Mail, MessageCircle } from 'lucide-react';
-import { toast } from 'sonner';
-import { apiService } from "../../services/api"; 
+import React, { useState, useEffect } from "react";
+import { motion } from "motion/react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../ui/card";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import { Textarea } from "../ui/textarea";
+import { Badge } from "../ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "../ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import {
+  Plus,
+  Clock,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Phone,
+  Mail,
+  MessageCircle,
+} from "lucide-react";
+import { toast } from "sonner";
+import { apiService } from "../../services/api";
 
 interface SupportViewProps {
   user: any;
@@ -30,26 +58,26 @@ export default function SupportView() {
   });
 
   const categories = [
-    { value: 'technical', label: 'Technical Issues' },
-    { value: 'account', label: 'Account Related' },
-    { value: 'transaction', label: 'Transaction Issues' },
-    { value: 'documentation', label: 'Documentation' },
-    { value: 'other', label: 'Other' }
+    { value: "technical", label: "Technical Issues" },
+    { value: "account", label: "Account Related" },
+    { value: "transaction", label: "Transaction Issues" },
+    { value: "documentation", label: "Documentation" },
+    { value: "other", label: "Other" },
   ];
 
   const priorities = [
-    { value: 'low', label: 'Low' },
-    { value: 'medium', label: 'Medium' },
-    { value: 'high', label: 'High' },
-    { value: 'urgent', label: 'Urgent' }
+    { value: "low", label: "Low" },
+    { value: "medium", label: "Medium" },
+    { value: "high", label: "High" },
+    { value: "urgent", label: "Urgent" },
   ];
 
   const fetchTickets = async () => {
     try {
       setLoading(true);
-      const tickets = await apiService.getCustomerTickets({ page: 0, size: 10 });
-      setTickets(tickets); // no .data here
-      console.log("Fetched tickets:", tickets);
+      const result = await apiService.getCustomerTickets({ page: 0, size: 10 });
+      setTickets(result || []);
+      console.log("Fetched tickets:", result);
     } catch (error) {
       console.error("Error fetching tickets:", error);
       toast.error("Failed to load tickets");
@@ -63,34 +91,72 @@ export default function SupportView() {
   }, []);
 
   const getStatusInfo = (status?: string) => {
-    const s = status?.toLowerCase() || '';
+    const s = status?.toLowerCase() || "";
     switch (s) {
-      case 'open':
-        return { color: 'text-blue-600', bg: 'bg-blue-100', icon: AlertCircle, label: 'Open' };
-      case 'in progress':
-        return { color: 'text-yellow-600', bg: 'bg-yellow-100', icon: Clock, label: 'In Progress' };
-      case 'resolved':
-        return { color: 'text-green-600', bg: 'bg-green-100', icon: CheckCircle, label: 'Resolved' };
-      case 'closed':
-        return { color: 'text-gray-600', bg: 'bg-gray-100', icon: XCircle, label: 'Closed' };
+      case "open":
+        return {
+          color: "text-blue-600",
+          bg: "bg-blue-100",
+          icon: AlertCircle,
+          label: "Open",
+        };
+      case "in progress":
+        return {
+          color: "text-yellow-600",
+          bg: "bg-yellow-100",
+          icon: Clock,
+          label: "In Progress",
+        };
+      case "resolved":
+        return {
+          color: "text-green-600",
+          bg: "bg-green-100",
+          icon: CheckCircle,
+          label: "Resolved",
+        };
+      case "closed":
+        return {
+          color: "text-gray-600",
+          bg: "bg-gray-100",
+          icon: XCircle,
+          label: "Closed",
+        };
       default:
-        return { color: 'text-gray-600', bg: 'bg-gray-100', icon: AlertCircle, label: status || 'Unknown' };
+        return {
+          color: "text-gray-600",
+          bg: "bg-gray-100",
+          icon: AlertCircle,
+          label: status || "Unknown",
+        };
     }
   };
 
   const getPriorityColor = (priority?: string) => {
-    if (!priority) return 'bg-gray-100 text-gray-800';
+    if (!priority) return "bg-gray-100 text-gray-800";
     switch (priority.toLowerCase()) {
-      case 'urgent': return 'bg-red-100 text-red-800';
-      case 'high': return 'bg-orange-100 text-orange-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'low': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case "urgent":
+        return "bg-red-100 text-red-800";
+      case "high":
+        return "bg-orange-100 text-orange-800";
+      case "medium":
+        return "bg-yellow-100 text-yellow-800";
+      case "low":
+        return "bg-green-100 text-green-800";
+      default:
+        return "bg-gray-100 text-gray-800";
     }
   };
 
+  const formatDate = (date?: string) =>
+    date ? new Date(date).toLocaleString() : "N/A";
+
   const handleCreateTicket = async () => {
-    if (!newTicket.subject || !newTicket.category || !newTicket.priority || !newTicket.description) {
+    if (
+      !newTicket.subject ||
+      !newTicket.category ||
+      !newTicket.priority ||
+      !newTicket.description
+    ) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -100,7 +166,7 @@ export default function SupportView() {
       toast.success("Support ticket created successfully!");
       setIsCreateDialogOpen(false);
       setNewTicket({ subject: "", category: "", priority: "", description: "" });
-      fetchTickets(); // refresh tickets
+      fetchTickets();
     } catch (error) {
       console.error("Error creating ticket:", error);
       toast.error("Failed to create ticket");
@@ -108,11 +174,7 @@ export default function SupportView() {
   };
 
   const handleTicketUpdate = (ticketId: string, message: string) => {
-    toast.success('Your message has been sent to our support team');
-  };
-
-  const handleViewTicket = (ticket: any) => {
-    setSelectedTicket(ticket);
+    toast.success("Your message has been sent to our support team");
   };
 
   return (
@@ -144,14 +206,21 @@ export default function SupportView() {
                   id="subject"
                   placeholder="Brief description of your issue"
                   value={newTicket.subject}
-                  onChange={(e) => setNewTicket({ ...newTicket, subject: e.target.value })}
+                  onChange={(e) =>
+                    setNewTicket({ ...newTicket, subject: e.target.value })
+                  }
                 />
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Category *</Label>
-                  <Select value={newTicket.category} onValueChange={(value) => setNewTicket({ ...newTicket, category: value })}>
+                  <Select
+                    value={newTicket.category}
+                    onValueChange={(value) =>
+                      setNewTicket({ ...newTicket, category: value })
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
@@ -164,10 +233,15 @@ export default function SupportView() {
                     </SelectContent>
                   </Select>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label>Priority *</Label>
-                  <Select value={newTicket.priority} onValueChange={(value) => setNewTicket({ ...newTicket, priority: value })}>
+                  <Select
+                    value={newTicket.priority}
+                    onValueChange={(value) =>
+                      setNewTicket({ ...newTicket, priority: value })
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select priority" />
                     </SelectTrigger>
@@ -181,18 +255,20 @@ export default function SupportView() {
                   </Select>
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="description">Description *</Label>
                 <Textarea
                   id="description"
                   placeholder="Please provide detailed information about your issue..."
                   value={newTicket.description}
-                  onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })}
+                  onChange={(e) =>
+                    setNewTicket({ ...newTicket, description: e.target.value })
+                  }
                   rows={4}
                 />
               </div>
-              
+
               <Button onClick={handleCreateTicket} className="w-full">
                 Create Ticket
               </Button>
@@ -203,7 +279,11 @@ export default function SupportView() {
 
       {/* Quick Help Options */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
           <Card className="hover:shadow-lg transition-shadow cursor-pointer">
             <CardContent className="p-6 text-center">
               <Phone className="w-12 h-12 text-primary mx-auto mb-4" />
@@ -217,7 +297,11 @@ export default function SupportView() {
           </Card>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
           <Card className="hover:shadow-lg transition-shadow cursor-pointer">
             <CardContent className="p-6 text-center">
               <MessageCircle className="w-12 h-12 text-primary mx-auto mb-4" />
@@ -225,19 +309,29 @@ export default function SupportView() {
               <p className="text-sm text-muted-foreground mb-4">
                 Get instant help from our chat team
               </p>
-              <Button variant="outline" className="w-full">Start Chat</Button>
+              <Button variant="outline" className="w-full">
+                Start Chat
+              </Button>
             </CardContent>
           </Card>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
           <Card className="hover:shadow-lg transition-shadow cursor-pointer">
             <CardContent className="p-6 text-center">
               <Mail className="w-12 h-12 text-primary mx-auto mb-4" />
               <h3 className="font-semibold mb-2">Email Support</h3>
-              <p className="text-sm text-muted-foreground mb-4">Send us an email for detailed support</p>
+              <p className="text-sm text-muted-foreground mb-4">
+                Send us an email for detailed support
+              </p>
               <p className="font-semibold text-primary">support@wtfbank.com</p>
-              <p className="text-xs text-muted-foreground">Response within 4 hours</p>
+              <p className="text-xs text-muted-foreground">
+                Response within 4 hours
+              </p>
             </CardContent>
           </Card>
         </motion.div>
@@ -254,17 +348,29 @@ export default function SupportView() {
           <Card>
             <CardHeader>
               <CardTitle>Your Support Tickets</CardTitle>
-              <CardDescription>Track and manage your support requests</CardDescription>
+              <CardDescription>
+                Track and manage your support requests
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
+                {tickets.length === 0 && (
+                  <p className="text-muted-foreground text-sm">
+                    No tickets found.
+                  </p>
+                )}
                 {tickets.map((ticket, index) => {
+                  const subject = ticket.subject || "No Subject";
+                  const category = ticket.category || "N/A";
+                  const createdAt = formatDate(ticket.createdAt);
+                  const updatedAt = formatDate(ticket.updatedAt);
+                  const priority = ticket.priority || "N/A";
                   const statusInfo = getStatusInfo(ticket.status);
                   const StatusIcon = statusInfo.icon;
 
                   return (
                     <motion.div
-                      key={ticket.ticketId}
+                      key={ticket.ticketId || index}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.1 }}
@@ -274,20 +380,30 @@ export default function SupportView() {
                       <div className="flex items-center justify-between">
                         <div className="space-y-1">
                           <div className="flex items-center space-x-3">
-                            <h4 className="font-semibold">{ticket.subject}</h4>
-                            <Badge variant="outline">{ticket.ticketId}</Badge>
+                            <h4 className="font-semibold">{subject}</h4>
+                            <Badge variant="outline">
+                              {ticket.ticketId || "N/A"}
+                            </Badge>
                           </div>
                           <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                            <span>Category: {ticket.category || 'N/A'}</span>
-                            <span>Created: {ticket.createdAt}</span>
-                            <span>Updated: {ticket.updatedAt || 'N/A'}</span>
+                            <span>Category: {category}</span>
+                            <span>Created: {createdAt}</span>
+                            <span>Updated: {updatedAt}</span>
                           </div>
                         </div>
                         <div className="flex items-center space-x-3">
-                          <Badge className={getPriorityColor(ticket.priority)}>{ticket.priority || 'N/A'}</Badge>
-                          <div className={`flex items-center space-x-2 px-3 py-1 rounded-full ${statusInfo.bg}`}>
+                          <Badge className={getPriorityColor(priority)}>
+                            {priority}
+                          </Badge>
+                          <div
+                            className={`flex items-center space-x-2 px-3 py-1 rounded-full ${statusInfo.bg}`}
+                          >
                             <StatusIcon className={`w-4 h-4 ${statusInfo.color}`} />
-                            <span className={`text-sm font-medium ${statusInfo.color}`}>{statusInfo.label}</span>
+                            <span
+                              className={`text-sm font-medium ${statusInfo.color}`}
+                            >
+                              {statusInfo.label}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -303,23 +419,34 @@ export default function SupportView() {
           <Card>
             <CardHeader>
               <CardTitle>Frequently Asked Questions</CardTitle>
-              <CardDescription>Find quick answers to common questions</CardDescription>
+              <CardDescription>
+                Find quick answers to common questions
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {[{
-                  question: 'How do I reset my password?',
-                  answer: 'You can reset your password by clicking the "Forgot Password" link on the login page and following the instructions sent to your email.'
-                }, {
-                  question: 'How long does it take for transfers to process?',
-                  answer: 'Internal transfers are instant. External transfers typically take 1-3 business days depending on the receiving bank.'
-                }, {
-                  question: 'How do I update my contact information?',
-                  answer: 'You can update your contact information in the Profile section of your dashboard or by contacting customer support.'
-                }, {
-                  question: 'What are your customer service hours?',
-                  answer: 'Our customer service is available 24/7 for urgent issues. For general inquiries, our standard hours are Monday-Friday 8 AM to 8 PM EST.'
-                }].map((faq, index) => (
+                {[
+                  {
+                    question: "How do I reset my password?",
+                    answer:
+                      'You can reset your password by clicking the "Forgot Password" link on the login page and following the instructions sent to your email.',
+                  },
+                  {
+                    question: "How long does it take for transfers to process?",
+                    answer:
+                      "Internal transfers are instant. External transfers typically take 1-3 business days depending on the receiving bank.",
+                  },
+                  {
+                    question: "How do I update my contact information?",
+                    answer:
+                      "You can update your contact information in the Profile section of your dashboard or by contacting customer support.",
+                  },
+                  {
+                    question: "What are your customer service hours?",
+                    answer:
+                      "Our customer service is available 24/7 for urgent issues. For general inquiries, our standard hours are Monday-Friday 8 AM to 8 PM EST.",
+                  },
+                ].map((faq, index) => (
                   <div key={index} className="border rounded-lg p-4">
                     <h4 className="font-semibold mb-2">{faq.question}</h4>
                     <p className="text-sm text-muted-foreground">{faq.answer}</p>
@@ -337,36 +464,61 @@ export default function SupportView() {
           <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center space-x-3">
-                <span>{selectedTicket.subject}</span>
-                <Badge variant="outline">{selectedTicket.ticketId}</Badge>
+                <span>{selectedTicket.subject || "No Subject"}</span>
+                <Badge variant="outline">
+                  {selectedTicket.ticketId || "N/A"}
+                </Badge>
               </DialogTitle>
               <DialogDescription>
-                Category: {selectedTicket.category || 'N/A'} | Priority: {selectedTicket.priority || 'N/A'} | Status: {selectedTicket.status || 'N/A'}
+                Category: {selectedTicket.category || "N/A"} | Priority:{" "}
+                {selectedTicket.priority || "N/A"} | Status:{" "}
+                {selectedTicket.status || "N/A"}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 max-h-96 overflow-y-auto">
-              {selectedTicket.messages?.map((message: any) => (
-                <div
-                  key={message.id}
-                  className={`p-3 rounded-lg ${message.sender === 'user' ? 'bg-primary/10 ml-8' : 'bg-muted mr-8'}`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-semibold text-sm">{message.sender === 'user' ? 'You' : 'Support Team'}</span>
-                    <span className="text-xs text-muted-foreground">{message.timestamp}</span>
+              {selectedTicket.messages?.length ? (
+                selectedTicket.messages.map((message: any) => (
+                  <div
+                    key={message.id}
+                    className={`p-3 rounded-lg ${
+                      message.sender === "user"
+                        ? "bg-primary/10 ml-8"
+                        : "bg-muted mr-8"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold text-sm">
+                        {message.sender === "user" ? "You" : "Support Team"}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDate(message.timestamp)}
+                      </span>
+                    </div>
+                    <p className="text-sm">{message.message || "No content"}</p>
                   </div>
-                  <p className="text-sm">{message.message}</p>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">No messages yet.</p>
+              )}
             </div>
 
-            {selectedTicket.status?.toLowerCase() !== 'resolved' && selectedTicket.status?.toLowerCase() !== 'closed' && (
-              <div className="space-y-3">
-                <Textarea placeholder="Type your message here..." rows={3} />
-                <Button onClick={() => handleTicketUpdate(selectedTicket.ticketId.toString(), 'New message')} className="w-full">
-                  Send Message
-                </Button>
-              </div>
-            )}
+            {selectedTicket.status?.toLowerCase() !== "resolved" &&
+              selectedTicket.status?.toLowerCase() !== "closed" && (
+                <div className="space-y-3">
+                  <Textarea placeholder="Type your message here..." rows={3} />
+                  <Button
+                    onClick={() =>
+                      handleTicketUpdate(
+                        selectedTicket.ticketId?.toString() || "",
+                        "New message"
+                      )
+                    }
+                    className="w-full"
+                  >
+                    Send Message
+                  </Button>
+                </div>
+              )}
           </DialogContent>
         </Dialog>
       )}
