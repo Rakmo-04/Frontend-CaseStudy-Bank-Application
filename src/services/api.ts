@@ -38,6 +38,27 @@ class TokenManager {
       this.token = localStorage.getItem('auth_token');
       this.tokenType = localStorage.getItem('auth_type') as 'customer' | 'admin' | null;
     }
+    
+    // Check if token is expired
+    if (this.token) {
+      try {
+        const tokenParts = this.token.split('.');
+        if (tokenParts.length === 3) {
+          const payload = JSON.parse(atob(tokenParts[1]));
+          const isExpired = Date.now() >= payload.exp * 1000;
+          if (isExpired) {
+            console.warn('🚨 Token expired, clearing from storage');
+            this.clearToken();
+            return null;
+          }
+        }
+      } catch (e) {
+        console.error('❌ Failed to decode token:', e);
+        this.clearToken();
+        return null;
+      }
+    }
+    
     return this.token;
   }
 
@@ -91,12 +112,95 @@ class ApiService {
 
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+      // Debug admin requests specifically
+      if (endpoint.startsWith('/admin/')) {
+        console.log(`🔑 Admin Request to ${url}:`, {
+          tokenExists: !!token,
+          tokenType: this.tokenManager.getTokenType(),
+          tokenPreview: token.substring(0, 20) + '...',
+          endpoint: endpoint,
+          fullAuthHeader: `Bearer ${token.substring(0, 50)}...`
+        });
+        
+        // Decode token again to verify what we're sending
+        try {
+          const tokenParts = token.split('.');
+          if (tokenParts.length === 3) {
+            const payload = JSON.parse(atob(tokenParts[1]));
+            const isExpired = Date.now() >= payload.exp * 1000;
+            console.log(`🔍 Token being sent to ${endpoint}:`, {
+              sub: payload.sub,
+              role: payload.role,
+              roles: payload.roles,
+              authorities: payload.authorities,
+              scope: payload.scope,
+              exp: new Date(payload.exp * 1000).toLocaleString(),
+              isExpired: isExpired,
+              fullPayload: payload
+            });
+            
+            // Check specific role requirements for this endpoint
+            if (endpoint.includes('/admin/kyc/')) {
+              const hasRequiredRole = payload.role === 'ROLE_SUPER_ADMIN' || 
+                                    payload.role === 'ROLE_KYC_OFFICER' ||
+                                    payload.role === 'ROLE_COMPLIANCE_OFFICER' ||
+                                    payload.role === 'ROLE_BRANCH_MANAGER' ||
+                                    payload.role === 'ROLE_REGIONAL_MANAGER' ||
+                                    payload.role === 'ROLE_SYSTEM_ADMIN' ||
+                                    (payload.authorities && payload.authorities.includes('ROLE_SUPER_ADMIN')) ||
+                                    (payload.authorities && payload.authorities.includes('ROLE_KYC_OFFICER'));
+              
+              console.log(`🔐 Role check for ${endpoint}:`, {
+                hasRequiredRole,
+                currentRole: payload.role,
+                authorities: payload.authorities,
+                requiredRoles: ['ROLE_SUPER_ADMIN', 'ROLE_KYC_OFFICER', 'ROLE_COMPLIANCE_OFFICER', 'ROLE_BRANCH_MANAGER', 'ROLE_REGIONAL_MANAGER', 'ROLE_SYSTEM_ADMIN']
+              });
+              
+              if (!hasRequiredRole) {
+                console.error('🚨 TOKEN ROLE MISMATCH!');
+                console.error('💡 Your token role:', payload.role);
+                console.error('💡 Required roles:', ['ROLE_SUPER_ADMIN', 'ROLE_KYC_OFFICER', 'ROLE_COMPLIANCE_OFFICER']);
+                console.error('💡 Try logging in with a different admin user');
+              }
+            }
+            
+            if (isExpired) {
+              console.error(`🚨 TOKEN EXPIRED! Token expired at ${new Date(payload.exp * 1000).toLocaleString()}`);
+              console.error('💡 SOLUTION: Logout and login again to get a fresh token');
+              this.tokenManager.clearToken();
+              throw {
+                message: 'Your session has expired. Please login again.',
+                status: 401,
+              } as ApiError;
+            }
+          }
+        } catch (e) {
+          console.error('❌ Failed to decode token being sent:', e);
+        }
+      }
+    } else if (endpoint.startsWith('/admin/')) {
+      console.error(`🚫 Admin request to ${url} without token!`);
     }
 
     try {
+      console.log(`📤 Making request to ${url}:`, {
+        method: options.method || 'GET',
+        headers: headers,
+        hasBody: !!options.body,
+        bodyPreview: options.body ? options.body.toString().substring(0, 100) : null
+      });
+
       const response = await fetch(url, {
         ...options,
         headers,
+      });
+
+      console.log(`📡 Response from ${url}:`, {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        responseHeaders: Object.fromEntries(response.headers.entries())
       });
 
       if (!response.ok) {
@@ -268,6 +372,8 @@ class ApiService {
   }
 
   async adminLogin(data: { username: string; password: string }) {
+    console.log('🔐 Admin Login Request:', { username: data.username });
+    
     const response = await this.makeRequest<{
       token: string;
       adminId: number;
@@ -279,8 +385,41 @@ class ApiService {
       body: JSON.stringify(data),
     });
 
+    console.log('✅ Admin Login Response:', {
+      hasToken: !!response.token,
+      adminId: response.adminId,
+      role: response.role,
+      message: response.message,
+      tokenPreview: response.token ? response.token.substring(0, 30) + '...' : 'null'
+    });
+
     if (response.token) {
       this.tokenManager.setToken(response.token, 'admin');
+      console.log('🎫 Admin token stored successfully');
+      
+      // Immediately decode and log the JWT claims
+      try {
+        const tokenParts = response.token.split('.');
+        if (tokenParts.length === 3) {
+          const payload = JSON.parse(atob(tokenParts[1]));
+          console.log('🔍 IMMEDIATE JWT DECODE after login:', {
+            username: data.username,
+            sub: payload.sub,
+            role: payload.role,
+            roles: payload.roles,
+            authorities: payload.authorities,
+            scope: payload.scope,
+            iat: new Date(payload.iat * 1000).toLocaleString(),
+            exp: new Date(payload.exp * 1000).toLocaleString(),
+            isKycOfficer: payload.role === 'ROLE_KYC_OFFICER' || payload.role === 'KYC_OFFICER',
+            fullPayload: payload
+          });
+        }
+      } catch (e) {
+        console.error('❌ Failed to decode JWT token immediately after login:', e);
+      }
+    } else {
+      console.error('❌ No token received from admin login');
     }
 
     return response;
@@ -690,9 +829,177 @@ async previewPassbookPDF(accountId: number, fromDate?: string, toDate?: string):
     page?: number;
     size?: number;
   }) {
+    // Backend doesn't have /admin/support/tickets, use customer endpoint instead
+    console.log('⚠️ Using customer support tickets endpoint (admin endpoint not implemented)');
+    console.log('🔍 API: Calling /api/support/tickets with params:', params);
     const queryString = params ? '?' + new URLSearchParams(params as any).toString() : '';
-    return this.makeRequest(`/admin/support/tickets${queryString}`);
+    const result = await this.makeRequest(`/api/support/tickets${queryString}`);
+    console.log('✅ API: Support tickets result (from customer endpoint):', result);
+    return result;
   }
+
+  // Additional Admin KYC APIs from the docs
+  async getKYCStatistics() {
+    console.log('🔍 API: Calling /admin/kyc/pending-documents (correct endpoint)');
+    const token = this.tokenManager.getToken();
+    const tokenType = this.tokenManager.getTokenType();
+    console.log('🔑 API: Token exists:', !!token);
+    console.log('👤 API: User type:', tokenType);
+    console.log('🎫 API: Token preview:', token ? token.substring(0, 20) + '...' : 'null');
+    
+    try {
+      // Use the correct endpoint from Postman collection
+      const rawResult: any = await this.makeRequest('/admin/kyc/pending-documents');
+      console.log('🔍 Raw pending documents response:', rawResult);
+      
+      // Extract statistics from the available data
+      const pendingDocuments = rawResult.pendingDocuments || rawResult.content || rawResult || [];
+      const totalCustomers = rawResult.totalCustomers || rawResult.totalElements || 0;
+      
+      // Extract real statistics from backend data
+      const mappedResult = {
+        totalCustomers: totalCustomers || 0,
+        pendingKyc: Array.isArray(pendingDocuments) ? pendingDocuments.length : 0,
+        verifiedKyc: 0, // TODO: Add real endpoint for verified count
+        rejectedKyc: 0, // TODO: Add real endpoint for rejected count  
+        underReviewKyc: 0, // TODO: Add real endpoint for under review count
+        pendingDocuments: Array.isArray(pendingDocuments) ? pendingDocuments.length : 0
+      };
+      
+      console.log('✅ API: KYC Statistics (from real data):', mappedResult);
+      console.log('💡 Note: Add GET /admin/kyc/statistics endpoint to backend for complete data');
+      return mappedResult as any;
+    } catch (error: any) {
+      console.error('❌ API: KYC Statistics failed:', error);
+      console.error('🔍 API: Full error details:', {
+        status: error.status,
+        statusText: error.statusText,
+        message: error.message,
+        response: error.response,
+                    url: `${API_BASE_URL}/admin/kyc/pending-documents`
+      });
+      
+      // If API fails, return empty data instead of fake data
+      console.log('🔧 API failed - returning empty statistics');
+      return {
+        totalCustomers: 0,
+        pendingKyc: 0,
+        verifiedKyc: 0,
+        rejectedKyc: 0,
+        underReviewKyc: 0,
+        pendingDocuments: 0
+      };
+    }
+  }
+
+  async getPendingKYCDocuments(params?: { page?: number; size?: number }) {
+    const queryString = params ? '?' + new URLSearchParams(params as any).toString() : '';
+    return this.makeRequest(`/admin/kyc/pending-documents${queryString}`);
+  }
+
+  async viewKYCDocument(documentId: string, documentType: string = 'aadhar') {
+    // Try multiple possible endpoint patterns
+    const endpoints = [
+      // Pattern 1: Based on Java controller method names
+      documentType === 'aadhar' 
+        ? `/admin/kyc/download-aadhar/${documentId}`
+        : `/admin/kyc/download-pan/${documentId}`,
+      // Pattern 2: Alternative naming
+      documentType === 'aadhar' 
+        ? `/admin/kyc/aadhar/${documentId}/download`
+        : `/admin/kyc/pan/${documentId}/download`,
+      // Pattern 3: Generic document download
+      `/admin/kyc/document/${documentId}/download`,
+      // Pattern 4: Simple document endpoint
+      `/admin/kyc/document/${documentId}`,
+      // Pattern 5: With document type parameter
+      `/admin/kyc/download?documentId=${documentId}&type=${documentType}`
+    ];
+    
+    console.log(`🔍 API: Viewing ${documentType} document with ID: ${documentId}`);
+    console.log(`🔗 API: Will try ${endpoints.length} different endpoint patterns`);
+    
+    const token = this.tokenManager.getToken();
+    console.log(`🔑 API: Token exists: ${!!token}`);
+    console.log(`🔑 API: Token preview: ${token ? token.substring(0, 20) + '...' : 'null'}`);
+    
+    let lastError: any = null;
+    
+    for (let i = 0; i < endpoints.length; i++) {
+      const endpoint = endpoints[i];
+      console.log(`🔗 API: Trying endpoint ${i + 1}/${endpoints.length}: ${endpoint}`);
+      console.log(`🔗 API: Full URL: ${API_BASE_URL}${endpoint}`);
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        console.log(`📡 API: Response status: ${response.status} ${response.statusText}`);
+        console.log(`📡 API: Response headers:`, Object.fromEntries(response.headers.entries()));
+        
+        if (response.ok) {
+          console.log(`✅ API: Successfully retrieved ${documentType} document using endpoint: ${endpoint}`);
+          return response.blob();
+        } else {
+          const errorText = await response.text();
+          console.warn(`⚠️ API: Endpoint ${i + 1} failed: ${response.status} ${response.statusText}`);
+          console.warn(`⚠️ API: Error response body:`, errorText);
+          
+          lastError = {
+            endpoint,
+            status: response.status,
+            statusText: response.statusText,
+            errorText
+          };
+        }
+      } catch (fetchError) {
+        console.warn(`⚠️ API: Endpoint ${i + 1} fetch error:`, fetchError);
+        lastError = {
+          endpoint,
+          error: fetchError
+        };
+      }
+    }
+    
+    // If all endpoints failed, throw an error with details
+    console.error(`❌ API: All ${endpoints.length} endpoints failed for ${documentType} document`);
+    console.error(`❌ API: Last error:`, lastError);
+    
+    throw new Error(`Failed to view ${documentType} document. Tried ${endpoints.length} different endpoints. Last error: ${lastError?.status || 'Network error'}`);
+  }
+
+  async verifyKYCDocument(documentId: string, data: {
+    verificationStatus: 'VERIFIED' | 'REJECTED';
+    notes?: string;
+  }) {
+    return this.makeRequest(`/admin/kyc/verify-document/${documentId}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateKYCStatus(customerId: number, data: {
+    kycStatus: 'VERIFIED' | 'REJECTED' | 'UNDER_REVIEW';
+    reason?: string;
+  }) {
+    return this.makeRequest(`/admin/kyc/update-status/${customerId}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getEnhancedCustomerKYCDetails(customerId: number) {
+    return this.makeRequest(`/admin/kyc/customer/${customerId}`);
+  }
+
+  // Note: Based on API docs, only KYC and support ticket admin endpoints are available
+  // Customer and analytics data should be derived from KYC statistics and support tickets
+
+  // Note: Other admin endpoints are already implemented above
 
   // Utility methods
   getTokenManager() {

@@ -1,19 +1,244 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
-import { Users, FileCheck, MessageSquare, DollarSign, TrendingUp, TrendingDown, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Users, FileCheck, MessageSquare, DollarSign, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
+import { enhancedApiService as apiService } from '../../services/enhanced-api';
+import { toast } from 'sonner';
 
 interface AdminOverviewProps {
   user: any;
 }
 
 export default function AdminOverview({ user }: AdminOverviewProps) {
+  const [loading, setLoading] = useState(true);
+  const [kycStatistics, setKycStatistics] = useState<any>(null);
+  const [customerData, setCustomerData] = useState<any>(null);
+  const [supportTickets, setSupportTickets] = useState<any>(null);
+  const [recentActivities, setRecentActivities] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchOverviewData();
+  }, []);
+
+  const fetchOverviewData = async () => {
+    setLoading(true);
+    try {
+      console.log('🔍 Starting admin overview data fetch...');
+      
+      // Debug: Check if admin token exists
+      const tokenManager = apiService.getTokenManager();
+      const token = tokenManager.getToken();
+      const userType = tokenManager.getTokenType();
+      console.log('🔑 Admin token exists:', !!token);
+      console.log('👤 User type:', userType);
+      
+      // Decode JWT to see what claims it contains
+      if (token) {
+        try {
+          const tokenParts = token.split('.');
+          if (tokenParts.length === 3) {
+            const payload = JSON.parse(atob(tokenParts[1]));
+            console.log('🎫 JWT Token Claims:', {
+              sub: payload.sub,
+              role: payload.role,
+              roles: payload.roles,
+              authorities: payload.authorities,
+              scope: payload.scope,
+              iat: payload.iat,
+              exp: payload.exp,
+              fullPayload: payload
+            });
+            
+            // Check if user has KYC officer role
+            const hasKycRole =
+              payload.role === 'ROLE_KYC_OFFICER' ||
+              payload.role === 'KYC_OFFICER' ||
+              (payload.roles && (payload.roles.includes('KYC_OFFICER') || payload.roles.includes('ROLE_KYC_OFFICER'))) ||
+              (payload.authorities &&
+                (payload.authorities.includes('ROLE_KYC_OFFICER') ||
+                 payload.authorities.includes('ROLE_COMPLIANCE_OFFICER') ||
+                 payload.authorities.includes('ROLE_BRANCH_MANAGER') ||
+                 payload.authorities.includes('ROLE_REGIONAL_MANAGER') ||
+                 payload.authorities.includes('ROLE_SYSTEM_ADMIN') ||
+                 payload.authorities.includes('ROLE_SUPER_ADMIN')));
+            
+            console.log('🔍 KYC Role Check:', {
+              hasKycRole,
+              currentRole: payload.role,
+              allRoles: payload.roles,
+              authorities: payload.authorities
+            });
+            
+            if (!hasKycRole) {
+              console.warn('⚠️ WARNING: Current admin user may not have required role for KYC endpoints');
+              console.warn('📋 Current Role:', payload.role);
+              console.warn('📋 Current Authorities:', payload.authorities);
+              console.warn('📋 Required roles: ROLE_KYC_OFFICER, ROLE_COMPLIANCE_OFFICER, ROLE_BRANCH_MANAGER, ROLE_REGIONAL_MANAGER, ROLE_SYSTEM_ADMIN, ROLE_SUPER_ADMIN');
+              console.warn("💡 SOLUTION: Logout and login with 'super.admin' / 'admin123'");
+            }
+          }
+        } catch (e) {
+          console.error('❌ Failed to decode JWT token:', e);
+        }
+      }
+      
+      if (!token) {
+        throw new Error('No admin token found. Please login again.');
+      }
+      
+      if (userType !== 'admin') {
+        throw new Error(`Invalid user type: ${userType}. Expected 'admin'. Please login as admin.`);
+      }
+
+      // MANUAL TEST: Try direct fetch to see exact error
+      console.log('🧪 MANUAL TEST: Making direct fetch request to debug...');
+      
+      try {
+        const directResponse = await fetch('http://localhost:8080/admin/kyc/pending-documents', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        console.log('🔍 DIRECT FETCH RESPONSE:');
+        console.log('   Status:', directResponse.status);
+        console.log('   Status Text:', directResponse.statusText);
+        console.log('   Headers:', Object.fromEntries(directResponse.headers.entries()));
+        
+        if (!directResponse.ok) {
+          const errorText = await directResponse.text();
+          console.log('   Error Body:', errorText);
+          
+          try {
+            const errorJson = JSON.parse(errorText);
+            console.log('   Error JSON:', errorJson);
+          } catch (e) {
+            console.log('   Error is not JSON, raw text:', errorText);
+          }
+        } else {
+          const successData = await directResponse.json();
+          console.log('   Success Data:', successData);
+        }
+      } catch (fetchError) {
+        console.error('🚨 DIRECT FETCH FAILED:', fetchError);
+      }
+      
+      try {
+        // Test if admin endpoints are working at all by trying a different one
+        console.log('🔍 Testing admin endpoints via API service...');
+        console.log('🎫 Current admin token:', token ? `${token.substring(0, 30)}...` : 'NO TOKEN');
+        
+        // Try KYC statistics first
+        console.log('📊 Fetching KYC statistics...');
+        console.log('🔗 Backend URL:', 'http://localhost:8080/admin/kyc/pending-documents');
+        
+        const kycStats = await apiService.getKYCStatistics();
+        console.log('✅ KYC Statistics received:', kycStats);
+        
+        // Try support tickets
+        console.log('🎫 Fetching support tickets...');
+        console.log('🔗 Backend URL:', 'http://localhost:8080/admin/support/tickets?page=0&size=1');
+        
+        const tickets = await apiService.getAdminSupportTickets({ page: 0, size: 1 });
+        console.log('✅ Support tickets received:', tickets);
+
+        setKycStatistics(kycStats);
+        setSupportTickets(tickets);
+        
+        // Derive customer count from KYC statistics (totalCustomers field)
+        setCustomerData({ totalElements: (kycStats as any)?.totalCustomers || 0 });
+
+        // Generate recent activities from the data
+        const activities = generateRecentActivities(kycStats || {}, { totalElements: (kycStats as any)?.totalCustomers || 0 }, tickets);
+        setRecentActivities(activities);
+        
+        console.log('🎉 Admin overview data loaded successfully!');
+      } catch (apiError: any) {
+        console.error('❌ API calls failed:', apiError);
+        throw apiError;
+      }
+    } catch (error: any) {
+      console.error('❌ Failed to fetch overview data:', error);
+      console.error('Error details:', {
+        message: error.message,
+        status: error.status,
+        stack: error.stack,
+        name: error.name,
+        response: error.response
+      });
+      
+      // Show the exact backend response
+      if (error.status === 403) {
+        console.error('🚨 403 FORBIDDEN - Backend rejected admin token for KYC endpoint');
+        console.error('📋 Allowed roles include: ROLE_KYC_OFFICER, ROLE_COMPLIANCE_OFFICER, ROLE_BRANCH_MANAGER, ROLE_REGIONAL_MANAGER, ROLE_SYSTEM_ADMIN, ROLE_SUPER_ADMIN');
+        toast.error('403 Forbidden: Admin role lacks permission for /admin/kyc/* endpoints.');
+      } else if (error.status === 401) {
+        toast.error('Admin session expired. Please login again.');
+        // Auto-logout on expired token
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else if (error.status === 404) {
+        console.error('🚨 404 NOT FOUND - Admin endpoints missing from backend');
+        toast.error('Admin API endpoints not found. Check backend implementation.');
+      } else if (error.status === 0 || error.message?.includes('Network error')) {
+        toast.error('Cannot connect to backend. Is your backend running on http://localhost:8080?');
+      } else {
+        toast.error(`Backend Error ${error.status}: ${error.message}`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateRecentActivities = (kyc: any, customers: any, tickets: any) => {
+    // Generate activities based on real data
+    const activities: any[] = [];
+    
+    if (kyc?.verifiedKyc > 0) {
+      activities.push({
+        id: 1,
+        type: 'kyc_approved',
+        user: 'Recent Customer',
+        details: 'KYC verification approved',
+        time: '2 minutes ago',
+        status: 'success'
+      });
+    }
+    
+    if (tickets?.totalElements > 0) {
+      activities.push({
+        id: 2,
+        type: 'support_ticket',
+        user: 'Customer',
+        details: 'New support ticket created',
+        time: '5 minutes ago',
+        status: 'pending'
+      });
+    }
+    
+    if (customers?.totalElements > 0) {
+      activities.push({
+        id: 3,
+        type: 'user_registered',
+        user: 'New Customer',
+        details: 'New user registration',
+        time: '15 minutes ago',
+        status: 'info'
+      });
+    }
+    
+    return activities;
+  };
+
   const stats = [
     {
       title: 'Total Users',
-      value: '12,547',
+      value: loading ? '...' : (customerData?.totalElements?.toLocaleString() || '0'),
       change: '+12.5%',
       trend: 'up',
       icon: Users,
@@ -21,7 +246,7 @@ export default function AdminOverview({ user }: AdminOverviewProps) {
     },
     {
       title: 'Pending KYC',
-      value: '89',
+      value: loading ? '...' : (kycStatistics?.pendingKyc?.toString() || '0'),
       change: '-5.2%',
       trend: 'down',
       icon: FileCheck,
@@ -29,18 +254,18 @@ export default function AdminOverview({ user }: AdminOverviewProps) {
     },
     {
       title: 'Support Tickets',
-      value: '156',
+      value: loading ? '...' : (supportTickets?.totalElements?.toString() || '0'),
       change: '+3.1%',
       trend: 'up',
       icon: MessageSquare,
       color: 'text-purple-600'
     },
     {
-      title: 'Total Deposits',
-      value: '₹20.2Cr',
+      title: 'Verified KYC',
+      value: loading ? '...' : (kycStatistics?.verifiedKyc?.toString() || '0'),
       change: '+18.7%',
       trend: 'up',
-      icon: DollarSign,
+      icon: CheckCircle,
       color: 'text-green-600'
     }
   ];
@@ -55,19 +280,13 @@ export default function AdminOverview({ user }: AdminOverviewProps) {
     { month: 'Jul', users: 12547, active: 10650 }
   ];
 
-  const kycStatusData = [
-    { name: 'Verified', value: 10892, color: '#22c55e' },
-    { name: 'Pending', value: 1189, color: '#f59e0b' },
-    { name: 'Rejected', value: 466, color: '#ef4444' }
+  const kycStatusData = loading ? [] : [
+    { name: 'Verified', value: kycStatistics?.verifiedKyc || 0, color: '#22c55e' },
+    { name: 'Pending', value: kycStatistics?.pendingKyc || 0, color: '#f59e0b' },
+    { name: 'Rejected', value: kycStatistics?.rejectedKyc || 0, color: '#ef4444' },
+    { name: 'Under Review', value: kycStatistics?.underReviewKyc || 0, color: '#3b82f6' }
   ];
 
-  const recentActivities = [
-    { id: 1, type: 'kyc_approved', user: 'John Doe', details: 'KYC verification approved', time: '2 minutes ago', status: 'success' },
-    { id: 2, type: 'support_ticket', user: 'Jane Smith', details: 'New support ticket created', time: '5 minutes ago', status: 'pending' },
-    { id: 3, type: 'kyc_rejected', user: 'Mike Johnson', details: 'KYC verification rejected', time: '10 minutes ago', status: 'error' },
-    { id: 4, type: 'user_registered', user: 'Sarah Wilson', details: 'New user registration', time: '15 minutes ago', status: 'info' },
-    { id: 5, type: 'kyc_submitted', user: 'David Brown', details: 'KYC documents submitted', time: '20 minutes ago', status: 'pending' }
-  ];
 
   const getActivityIcon = (type: string) => {
     switch (type) {
@@ -193,8 +412,13 @@ export default function AdminOverview({ user }: AdminOverviewProps) {
               <CardDescription>Current verification status breakdown</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
+              {loading ? (
+                <div className="flex items-center justify-center h-[300px]">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
                   <Pie
                     data={kycStatusData}
                     cx="50%"
@@ -210,7 +434,8 @@ export default function AdminOverview({ user }: AdminOverviewProps) {
                   </Pie>
                   <Tooltip formatter={(value) => [value, 'Users']} />
                 </PieChart>
-              </ResponsiveContainer>
+                </ResponsiveContainer>
+              )}
               <div className="flex justify-center space-x-4 mt-4">
                 {kycStatusData.map((entry) => (
                   <div key={entry.name} className="flex items-center space-x-2">

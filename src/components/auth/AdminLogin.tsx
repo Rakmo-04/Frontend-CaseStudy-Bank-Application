@@ -6,7 +6,7 @@ import { Label } from '../ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Alert, AlertDescription } from '../ui/alert';
 import { ArrowLeft, Eye, EyeOff, Shield, Lock, Loader2 } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { enhancedApiService as apiService } from '../../services/enhanced-api';
 import type { ApiError } from '../../services/api';
 
@@ -172,8 +172,10 @@ export default function AdminLogin({ onNavigate, onLogin }: AdminLoginProps) {
             <CardContent className="p-4">
               <h4 className="font-semibold text-accent mb-2">Demo Admin Access</h4>
               <div className="text-sm text-primary-foreground/80 space-y-1">
-                <p>Username: admin001</p>
-                <p>Password: admin123</p>
+                <p><strong>Username: kyc.officer</strong></p>
+                <p><strong>Password: admin123</strong></p>
+                <p className="text-xs text-green-400">✅ This user has ROLE_KYC_OFFICER (required for KYC endpoints)</p>
+                <p className="text-xs opacity-75">Other options: super.admin, compliance.officer, branch.manager</p>
               </div>
             </CardContent>
           </Card>

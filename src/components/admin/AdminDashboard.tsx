@@ -9,6 +9,7 @@ import AdminOverview from './AdminOverview';
 import KYCManagement from './KYCManagement';
 import SupportManagement from './SupportManagement';
 import AdminAnalytics from './AdminAnalytics';
+import AdminAuthTest from './AdminAuthTest';
 
 interface AdminDashboardProps {
   user: any;
@@ -23,7 +24,8 @@ export default function AdminDashboard({ user, onLogout }: AdminDashboardProps) 
     { id: 'kyc', label: 'KYC Management', icon: FileCheck },
     { id: 'support', label: 'Support Tickets', icon: MessageSquare },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-    { id: 'users', label: 'User Management', icon: Users }
+    { id: 'users', label: 'User Management', icon: Users },
+    { id: 'auth-test', label: '🔍 Auth Test', icon: Shield }
   ];
 
   const renderActiveView = () => {
@@ -38,6 +40,8 @@ export default function AdminDashboard({ user, onLogout }: AdminDashboardProps) 
         return <AdminAnalytics user={user} />;
       case 'users':
         return <div className="p-8 text-center text-muted-foreground">User Management coming soon...</div>;
+      case 'auth-test':
+        return <AdminAuthTest />;
       default:
         return <AdminOverview user={user} />;
     }

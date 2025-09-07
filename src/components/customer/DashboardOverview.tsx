@@ -30,12 +30,7 @@ export default function DashboardOverview({ user, onTransactionComplete }: Dashb
   const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
 
-  // Fallback mock accounts if API fails
-  const accounts = [
-    { id: 1, type: 'Checking', name: 'Primary Checking', balance: 1047832.50, accountNumber: '****1234', change: +2.3 },
-    { id: 2, type: 'Savings', name: 'Emergency Fund', balance: 3785420.75, accountNumber: '****5678', change: +5.1 },
-    { id: 3, type: 'Investment', name: 'Growth Portfolio', balance: 7456821.25, accountNumber: '****9012', change: +12.8 }
-  ];
+  // Real accounts only - no fallback data
 
   // Function to fetch real account data
   const fetchRealAccounts = async () => {
@@ -240,15 +235,15 @@ export default function DashboardOverview({ user, onTransactionComplete }: Dashb
     }
   };
 
-  // Use real accounts if available, otherwise fallback to mock data
-  const displayAccounts = realAccounts.length > 0 ? realAccounts.map(account => ({
+  // Use real accounts only
+  const displayAccounts = realAccounts.map(account => ({
     id: account.accountId,
     type: account.accountType,
     name: `${account.accountType} Account`,
     balance: account.balance,
     accountNumber: `****${account.accountNumber.slice(-4)}`,
     change: Math.random() * 10 - 5 // Random change for demo
-  })) : accounts;
+  }));
 
   const totalBalance = displayAccounts.reduce((sum, account) => sum + account.balance, 0);
 
@@ -286,8 +281,8 @@ export default function DashboardOverview({ user, onTransactionComplete }: Dashb
       {/* Live Balance Card - Real-time data from API */}
       {loadingAccounts ? (
         <Card className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-center space-x-4">
+          <CardContent>
+            <div className="flex items-center justify-center space-x-4 p-6">
               <RefreshCw className="h-8 w-8 animate-spin" />
               <div>
                 <h3 className="text-xl font-bold">Loading Balance...</h3>
@@ -298,8 +293,8 @@ export default function DashboardOverview({ user, onTransactionComplete }: Dashb
         </Card>
       ) : realAccounts.length === 0 ? (
         <Card className="bg-gradient-to-r from-amber-500 to-amber-600 text-white">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+          <CardContent>
+            <div className="flex items-center justify-between p-6">
               <div className="flex items-center space-x-4">
                 <AlertCircle className="h-8 w-8" />
                 <div>

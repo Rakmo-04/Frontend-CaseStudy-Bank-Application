@@ -46,9 +46,9 @@ export default function LiveBalanceCard({ user, refreshTrigger = 0 }: LiveBalanc
       // Get account details with balance
       const accountData = await apiService.getAccountById(user.accountId);
       
-      // Calculate today's change (mock calculation for now - you can enhance this with actual API)
-      const todayChange = Math.random() * 10000 - 5000; // Random change for demo
-      const monthChange = Math.random() * 50000 - 25000; // Random change for demo
+      // Calculate today's change (would need backend API for real data)
+      const todayChange = 0; // TODO: Add real change calculation from backend
+      const monthChange = 0; // TODO: Add real monthly change from backend
       
       setBalanceData({
         balance: accountData.balance,
@@ -130,31 +130,6 @@ export default function LiveBalanceCard({ user, refreshTrigger = 0 }: LiveBalanc
     );
   }
 
-  if (error) {
-    return (
-      <Card className="bg-gradient-to-r from-red-500 to-red-600 text-white">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <AlertCircle className="h-8 w-8" />
-              <div>
-                <h3 className="text-xl font-bold">Balance Unavailable</h3>
-                <p className="text-red-100">{error}</p>
-              </div>
-            </div>
-            <Button
-              onClick={handleRefresh}
-              variant="secondary"
-              size="sm"
-              disabled={loading}
-            >
-              {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : 'Retry'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
 
   if (!balanceData) return null;
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -9,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Avatar, AvatarFallback } from '../ui/avatar';
-import { Search, MessageSquare, Clock, CheckCircle, AlertTriangle, Send, User, Calendar } from 'lucide-react';
+import { Search, MessageSquare, Clock, CheckCircle, AlertTriangle, Send, User, Calendar, Loader2 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
+import { enhancedApiService as apiService } from '../../services/enhanced-api';
 
 interface SupportManagementProps {
   user: any;
@@ -22,99 +23,29 @@ export default function SupportManagement({ user }: SupportManagementProps) {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
   const [replyMessage, setReplyMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [supportTickets, setSupportTickets] = useState<any[]>([]);
 
-  const supportTickets = [
-    {
-      id: 'TKT-1001',
-      customerId: 'USR-1234',
-      customerName: 'John Doe',
-      customerEmail: 'john.doe@email.com',
-      subject: 'Unable to access mobile app',
-      category: 'Technical',
-      priority: 'High',
-      status: 'Open',
-      createdAt: '2024-01-15 10:30 AM',
-      updatedAt: '2024-01-15 11:15 AM',
-      assignedTo: 'Support Agent 1',
-      responseTime: '45 minutes',
-      messages: [
-        {
-          id: 1,
-          sender: 'customer',
-          senderName: 'John Doe',
-          message: 'I am unable to log into the mobile app. It keeps showing authentication error.',
-          timestamp: '2024-01-15 10:30 AM'
-        },
-        {
-          id: 2,
-          sender: 'support',
-          senderName: 'Support Agent 1',
-          message: 'Thank you for contacting us. We are investigating this issue. Please try clearing the app cache and restart your phone.',
-          timestamp: '2024-01-15 11:15 AM'
-        }
-      ]
-    },
-    {
-      id: 'TKT-1002',
-      customerId: 'USR-1235',
-      customerName: 'Jane Smith',
-      customerEmail: 'jane.smith@email.com',
-      subject: 'Transaction not reflected in account',
-      category: 'Account',
-      priority: 'Medium',
-      status: 'In Progress',
-      createdAt: '2024-01-14 2:30 PM',
-      updatedAt: '2024-01-15 9:00 AM',
-      assignedTo: 'Support Agent 2',
-      responseTime: '2 hours',
-      messages: [
-        {
-          id: 1,
-          sender: 'customer',
-          senderName: 'Jane Smith',
-          message: 'I made a transfer of $500 on Jan 12th but it is not showing in my account.',
-          timestamp: '2024-01-14 2:30 PM'
-        },
-        {
-          id: 2,
-          sender: 'support',
-          senderName: 'Support Agent 2',
-          message: 'We have located your transaction. It is currently being processed and should reflect within 24 hours.',
-          timestamp: '2024-01-15 9:00 AM'
-        }
-      ]
-    },
-    {
-      id: 'TKT-1003',
-      customerId: 'USR-1236',
-      customerName: 'Mike Johnson',
-      customerEmail: 'mike.johnson@email.com',
-      subject: 'Need account statement for loan application',
-      category: 'Documentation',
-      priority: 'Low',
-      status: 'Waiting for Customer',
-      createdAt: '2024-01-13 4:45 PM',
-      updatedAt: '2024-01-14 10:00 AM',
-      assignedTo: 'Support Agent 1',
-      responseTime: '15 minutes',
-      messages: [
-        {
-          id: 1,
-          sender: 'customer',
-          senderName: 'Mike Johnson',
-          message: 'I need my account statement for the last 6 months for loan application.',
-          timestamp: '2024-01-13 4:45 PM'
-        },
-        {
-          id: 2,
-          sender: 'support',
-          senderName: 'Support Agent 1',
-          message: 'Your statement has been generated. Please confirm your mailing address for delivery.',
-          timestamp: '2024-01-14 10:00 AM'
-        }
-      ]
+  useEffect(() => {
+    fetchSupportTickets();
+  }, []);
+
+  const fetchSupportTickets = async () => {
+    setLoading(true);
+    try {
+      const tickets = await apiService.getAdminSupportTickets({
+        page: 0,
+        size: 50
+      });
+      setSupportTickets(tickets.content || []);
+    } catch (error) {
+      console.error('Failed to fetch support tickets:', error);
+      toast.error('Failed to load support tickets');
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
 
   const getStatusInfo = (status: string) => {
     switch (status.toLowerCase()) {
@@ -180,12 +111,18 @@ export default function SupportManagement({ user }: SupportManagementProps) {
           <p className="text-muted-foreground">Manage customer support tickets and inquiries</p>
         </div>
         <div className="flex items-center space-x-3">
-          <Badge className="bg-blue-100 text-blue-800">
-            {supportTickets.filter(t => t.status === 'Open').length} Open
-          </Badge>
-          <Badge className="bg-yellow-100 text-yellow-800">
-            {supportTickets.filter(t => t.status === 'In Progress').length} In Progress
-          </Badge>
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <>
+              <Badge className="bg-blue-100 text-blue-800">
+                {supportTickets.filter(t => t.status === 'Open').length} Open
+              </Badge>
+              <Badge className="bg-yellow-100 text-yellow-800">
+                {supportTickets.filter(t => t.status === 'In Progress').length} In Progress
+              </Badge>
+            </>
+          )}
         </div>
       </div>
 
@@ -202,8 +139,10 @@ export default function SupportManagement({ user }: SupportManagementProps) {
               <MessageSquare className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">156</div>
-              <p className="text-xs text-muted-foreground">+8% from last week</p>
+              <div className="text-2xl font-bold">
+                {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : supportTickets.length}
+              </div>
+              <p className="text-xs text-muted-foreground">Total support tickets</p>
             </CardContent>
           </Card>
         </motion.div>
