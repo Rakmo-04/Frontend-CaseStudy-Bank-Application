@@ -206,17 +206,46 @@ class ApiService {
       if (!response.ok) {
         const errorData = await response.text();
         let errorMessage = 'An error occurred';
+        let errorDetails: any = null;
+        
+        console.error(`❌ API Error Response (${response.status}):`, errorData);
+        console.error(`❌ Response URL:`, response.url);
+        console.error(`❌ Response Headers:`, Object.fromEntries(response.headers.entries()));
         
         try {
           const parsedError = JSON.parse(errorData);
-          errorMessage = parsedError.message || errorMessage;
+          errorMessage = parsedError.message || parsedError.error || parsedError.details || errorMessage;
+          errorDetails = parsedError;
+          console.error('❌ Parsed Error Details:', parsedError);
+          
+          // Log specific validation errors if available
+          if (parsedError.validationErrors) {
+            console.error('❌ Validation Errors:', parsedError.validationErrors);
+          }
+          if (parsedError.fieldErrors) {
+            console.error('❌ Field Errors:', parsedError.fieldErrors);
+          }
         } catch {
           errorMessage = errorData || errorMessage;
+        }
+
+        // Special handling for 400 errors
+        if (response.status === 400) {
+          console.error('🚨 400 BAD REQUEST - Possible causes:');
+          console.error('   1. Missing required fields');
+          console.error('   2. Invalid data format (email, phone, date)');
+          console.error('   3. Validation errors on backend');
+          console.error('   4. Duplicate email/phone number');
+          console.error('   5. Backend endpoint changes');
+          console.error('   6. Content-Type header issues');
+          console.error('   7. Field validation failures');
+          console.error('   8. Data type mismatches');
         }
 
         throw {
           message: errorMessage,
           status: response.status,
+          details: errorDetails,
         } as ApiError;
       }
 
@@ -304,9 +333,79 @@ class ApiService {
     country: string;
     profilePhotoUrl?: string;
   }) {
+    // Prepare data exactly as backend expects
+    const requestData = {
+      firstName: data.firstName,
+      lastName: data.lastName,
+      email: data.email,
+      password: data.password,
+      phoneNumber: data.phoneNumber,
+      dateOfBirth: data.dateOfBirth,
+      gender: data.gender,
+      aadharNumber: data.aadharNumber,
+      panNumber: data.panNumber,
+      city: data.city,
+      state: data.state,
+      zipCode: data.zipCode,
+      country: data.country || 'India', // Default to India if not provided
+      profilePhotoUrl: data.profilePhotoUrl || 'https://example.com/photo.jpg' // Default photo URL
+    };
+
+    // Debug: Log the data being sent
+    console.log('🔍 Registration Initiate - Data being sent:', requestData);
+    console.log('🔍 Registration Initiate - Data validation:', {
+      firstName: requestData.firstName ? '✅' : '❌',
+      lastName: requestData.lastName ? '✅' : '❌',
+      email: requestData.email ? '✅' : '❌',
+      password: requestData.password ? '✅' : '❌',
+      phoneNumber: requestData.phoneNumber ? '✅' : '❌',
+      dateOfBirth: requestData.dateOfBirth ? '✅' : '❌',
+      gender: requestData.gender ? '✅' : '❌',
+      aadharNumber: requestData.aadharNumber ? '✅' : '❌',
+      panNumber: requestData.panNumber ? '✅' : '❌',
+      city: requestData.city ? '✅' : '❌',
+      state: requestData.state ? '✅' : '❌',
+      zipCode: requestData.zipCode ? '✅' : '❌',
+      country: requestData.country ? '✅' : '❌',
+      profilePhotoUrl: requestData.profilePhotoUrl ? '✅' : '❌'
+    });
+
+    // Validate required fields
+    const requiredFields = ['firstName', 'lastName', 'email', 'password', 'phoneNumber', 'dateOfBirth', 'gender', 'aadharNumber', 'panNumber', 'city', 'state', 'zipCode', 'country'];
+    const missingFields = requiredFields.filter(field => !requestData[field as keyof typeof requestData]);
+    
+    if (missingFields.length > 0) {
+      console.error('❌ Missing required fields:', missingFields);
+      throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(requestData.email)) {
+      console.error('❌ Invalid email format:', requestData.email);
+      throw new Error('Invalid email format');
+    }
+
+    // Validate phone number format (basic validation)
+    const phoneRegex = /^[0-9+\-\s()]+$/;
+    if (!phoneRegex.test(requestData.phoneNumber)) {
+      console.error('❌ Invalid phone number format:', requestData.phoneNumber);
+      throw new Error('Invalid phone number format');
+    }
+
+    // Validate date format
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(requestData.dateOfBirth)) {
+      console.error('❌ Invalid date format:', requestData.dateOfBirth);
+      throw new Error('Date must be in YYYY-MM-DD format');
+    }
+
+    console.log('✅ All validations passed, making API request...');
+    console.log('📤 Final request payload:', JSON.stringify(requestData, null, 2));
+
     return this.makeRequest('/auth/register/initiate', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(requestData),
     });
   }
 
@@ -809,7 +908,40 @@ async previewPassbookPDF(accountId: number, fromDate?: string, toDate?: string):
 
   async getPendingKYCRequests(params?: { page?: number; size?: number }) {
     const queryString = params ? '?' + new URLSearchParams(params as any).toString() : '';
-    return this.makeRequest(`/admin/kyc/pending${queryString}`);
+    console.log('🔍 API: getPendingKYCRequests called with params:', params);
+
+    try {
+      console.log('🔍 API: Calling /admin/kyc/pending endpoint...');
+      const result = await this.makeRequest(`/admin/kyc/pending${queryString}`);
+      console.log('✅ API: Admin pending requests endpoint worked!');
+      return result;
+    } catch (adminError: any) {
+      console.log('⚠️ API: Admin pending requests failed (403), trying customer endpoint...');
+      console.log('🔍 Admin error details:', {
+        status: adminError.status,
+        message: adminError.message,
+        url: `/admin/kyc/pending${queryString}`
+      });
+
+      // Fallback to customer endpoint
+      try {
+        console.log('🔍 API: Trying customer endpoint /api/kyc/documents as fallback...');
+        const customerQuery = params ? '?' + new URLSearchParams(params as any).toString() : '';
+        const customerResult = await this.makeRequest(`/api/kyc/documents${customerQuery}`);
+        console.log('✅ API: Customer pending documents endpoint worked!');
+        return customerResult;
+      } catch (customerError: any) {
+        console.log('❌ API: Both admin and customer pending requests failed');
+        console.log('🔍 Customer error details:', {
+          status: customerError.status,
+          message: customerError.message
+        });
+
+        // Return empty array as fallback
+        console.log('🔧 API: Returning empty array for pending requests');
+        return [];
+      }
+    }
   }
 
   async reviewKYCDocument(kycId: number, data: {
@@ -829,58 +961,68 @@ async previewPassbookPDF(accountId: number, fromDate?: string, toDate?: string):
     page?: number;
     size?: number;
   }) {
-    // Backend doesn't have /admin/support/tickets, use customer endpoint instead
-    console.log('⚠️ Using customer support tickets endpoint (admin endpoint not implemented)');
-    console.log('🔍 API: Calling /api/support/tickets with params:', params);
+    console.log('🔍 API: getAdminSupportTickets called with params:', params);
     const queryString = params ? '?' + new URLSearchParams(params as any).toString() : '';
-    const result = await this.makeRequest(`/api/support/tickets${queryString}`);
-    console.log('✅ API: Support tickets result (from customer endpoint):', result);
-    return result;
+
+    try {
+      console.log('🔍 API: Trying admin endpoint /admin/support/tickets...');
+      const result = await this.makeRequest(`/admin/support/tickets${queryString}`);
+      console.log('✅ API: Admin support tickets endpoint worked!');
+      return result;
+    } catch (adminError: any) {
+      console.log('⚠️ API: Admin support tickets failed (403), trying customer endpoint...');
+      console.log('🔍 Admin error details:', {
+        status: adminError.status,
+        message: adminError.message,
+        url: `/admin/support/tickets${queryString}`
+      });
+
+      // Fallback to customer endpoint for support tickets
+      try {
+        console.log('🔍 API: Trying customer endpoint /api/support/tickets as fallback...');
+        const customerResult = await this.makeRequest(`/api/support/tickets${queryString}`);
+        console.log('✅ API: Customer support tickets endpoint worked!');
+        return customerResult;
+      } catch (customerError: any) {
+        console.log('❌ API: Both admin and customer support tickets failed');
+        console.log('🔍 Customer error details:', {
+          status: customerError.status,
+          message: customerError.message
+        });
+
+        // Return empty array as fallback
+        console.log('🔧 API: Returning empty array for support tickets');
+        return [];
+      }
+    }
   }
 
   // Additional Admin KYC APIs from the docs
   async getKYCStatistics() {
-    console.log('🔍 API: Calling /admin/kyc/pending-documents (correct endpoint)');
-    const token = this.tokenManager.getToken();
-    const tokenType = this.tokenManager.getTokenType();
-    console.log('🔑 API: Token exists:', !!token);
-    console.log('👤 API: User type:', tokenType);
-    console.log('🎫 API: Token preview:', token ? token.substring(0, 20) + '...' : 'null');
-    
+    console.log('🔍 API: Getting KYC statistics from /admin/kyc/pending...');
+
     try {
-      // Use the correct endpoint from Postman collection
-      const rawResult: any = await this.makeRequest('/admin/kyc/pending-documents');
-      console.log('🔍 Raw pending documents response:', rawResult);
-      
-      // Extract statistics from the available data
-      const pendingDocuments = rawResult.pendingDocuments || rawResult.content || rawResult || [];
-      const totalCustomers = rawResult.totalCustomers || rawResult.totalElements || 0;
-      
-      // Extract real statistics from backend data
+      const result: any = await this.makeRequest('/admin/kyc/pending');
+      console.log('✅ API: KYC Statistics endpoint worked!', result);
+
+      // Calculate statistics from the pending requests
+      const pendingRequests = result.pendingKycRequests || [];
+      const totalPending = result.count || pendingRequests.length || 0;
+
       const mappedResult = {
-        totalCustomers: totalCustomers || 0,
-        pendingKyc: Array.isArray(pendingDocuments) ? pendingDocuments.length : 0,
-        verifiedKyc: 0, // TODO: Add real endpoint for verified count
-        rejectedKyc: 0, // TODO: Add real endpoint for rejected count  
-        underReviewKyc: 0, // TODO: Add real endpoint for under review count
-        pendingDocuments: Array.isArray(pendingDocuments) ? pendingDocuments.length : 0
+        totalCustomers: totalPending,
+        pendingKyc: totalPending,
+        verifiedKyc: 0, // These would need separate endpoints
+        rejectedKyc: 0,
+        underReviewKyc: 0,
+        pendingDocuments: totalPending
       };
-      
-      console.log('✅ API: KYC Statistics (from real data):', mappedResult);
-      console.log('💡 Note: Add GET /admin/kyc/statistics endpoint to backend for complete data');
-      return mappedResult as any;
+
+      console.log('✅ API: KYC Statistics calculated:', mappedResult);
+      return mappedResult;
+
     } catch (error: any) {
-      console.error('❌ API: KYC Statistics failed:', error);
-      console.error('🔍 API: Full error details:', {
-        status: error.status,
-        statusText: error.statusText,
-        message: error.message,
-        response: error.response,
-                    url: `${API_BASE_URL}/admin/kyc/pending-documents`
-      });
-      
-      // If API fails, return empty data instead of fake data
-      console.log('🔧 API failed - returning empty statistics');
+      console.log('❌ API: KYC statistics failed:', error);
       return {
         totalCustomers: 0,
         pendingKyc: 0,
@@ -894,7 +1036,40 @@ async previewPassbookPDF(accountId: number, fromDate?: string, toDate?: string):
 
   async getPendingKYCDocuments(params?: { page?: number; size?: number }) {
     const queryString = params ? '?' + new URLSearchParams(params as any).toString() : '';
-    return this.makeRequest(`/admin/kyc/pending-documents${queryString}`);
+    console.log('🔍 API: getPendingKYCDocuments called with params:', params);
+
+    try {
+      console.log('🔍 API: Trying admin endpoint /admin/kyc/pending...');
+      const result = await this.makeRequest(`/admin/kyc/pending${queryString}`);
+      console.log('✅ API: Admin pending documents endpoint worked!');
+      return result;
+    } catch (adminError: any) {
+      console.log('⚠️ API: Admin pending documents failed (403), trying customer endpoint...');
+      console.log('🔍 Admin error details:', {
+        status: adminError.status,
+        message: adminError.message,
+        url: `/admin/kyc/pending${queryString}`
+      });
+
+      // Fallback to customer endpoint
+      try {
+        console.log('🔍 API: Trying customer endpoint /api/kyc/documents as fallback...');
+        const customerQuery = params ? '?' + new URLSearchParams(params as any).toString() : '';
+        const customerResult = await this.makeRequest(`/api/kyc/documents${customerQuery}`);
+        console.log('✅ API: Customer pending documents endpoint worked!');
+        return customerResult;
+      } catch (customerError: any) {
+        console.log('❌ API: Both admin and customer pending documents failed');
+        console.log('🔍 Customer error details:', {
+          status: customerError.status,
+          message: customerError.message
+        });
+
+        // Return empty array as fallback
+        console.log('🔧 API: Returning empty array for pending documents');
+        return [];
+      }
+    }
   }
 
   async viewKYCDocument(documentId: string, documentType: string = 'aadhar') {

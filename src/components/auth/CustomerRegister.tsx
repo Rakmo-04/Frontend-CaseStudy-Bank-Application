@@ -17,9 +17,6 @@ interface CustomerRegisterProps {
   onRegister: (user: any) => void;
 }
 
-console.log(Object.getOwnPropertyNames(Object.getPrototypeOf(apiService)));
-
-
 export default function CustomerRegister({ onNavigate, onRegister }: CustomerRegisterProps) {
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
@@ -70,6 +67,68 @@ export default function CustomerRegister({ onNavigate, onRegister }: CustomerReg
     setError('');
     setIsLoading(true);
 
+    // Debug: Log form data before sending
+    console.log('🔍 Form Data before API call:', formData);
+    console.log('🔍 Form Data validation:', {
+      firstName: formData.firstName ? '✅' : '❌',
+      lastName: formData.lastName ? '✅' : '❌',
+      email: formData.email ? '✅' : '❌',
+      password: formData.password ? '✅' : '❌',
+      phoneNumber: formData.phoneNumber ? '✅' : '❌',
+      dateOfBirth: formData.dateOfBirth ? '✅' : '❌',
+      gender: formData.gender ? '✅' : '❌',
+      aadharNumber: formData.aadharNumber ? '✅' : '❌',
+      panNumber: formData.panNumber ? '✅' : '❌',
+      city: formData.city ? '✅' : '❌',
+      state: formData.state ? '✅' : '❌',
+      zipCode: formData.zipCode ? '✅' : '❌',
+      country: formData.country ? '✅' : '❌'
+    });
+
+    // Test direct API call to see exact error
+    console.log('🧪 Testing direct API call to debug 400 error...');
+    try {
+      const testResponse = await fetch('http://localhost:8080/auth/register/initiate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          password: formData.password,
+          phoneNumber: formData.phoneNumber,
+          dateOfBirth: formData.dateOfBirth,
+          gender: formData.gender,
+          aadharNumber: formData.aadharNumber,
+          panNumber: formData.panNumber,
+          city: formData.city,
+          state: formData.state,
+          zipCode: formData.zipCode,
+          country: formData.country || 'India',
+          profilePhotoUrl: 'https://example.com/photo.jpg'
+        })
+      });
+      
+      console.log('🧪 Direct API Response Status:', testResponse.status);
+      console.log('🧪 Direct API Response Headers:', Object.fromEntries(testResponse.headers.entries()));
+      
+      const testErrorData = await testResponse.text();
+      console.log('🧪 Direct API Error Response Body:', testErrorData);
+      
+      if (!testResponse.ok) {
+        try {
+          const testErrorJson = JSON.parse(testErrorData);
+          console.log('🧪 Direct API Parsed Error:', testErrorJson);
+        } catch (e) {
+          console.log('🧪 Direct API Error is not JSON:', testErrorData);
+        }
+      }
+    } catch (testError) {
+      console.error('🧪 Direct API Test Failed:', testError);
+    }
+
     try {
       await apiService.customerRegisterInitiate({
         firstName: formData.firstName,
@@ -91,6 +150,7 @@ export default function CustomerRegister({ onNavigate, onRegister }: CustomerReg
       toast.success('Verification code sent to your email');
     } catch (error) {
       const apiError = error as ApiError;
+      console.error('❌ Registration Initiate Error:', apiError);
       setError(apiError.message);
       toast.error(apiError.message);
     } finally {

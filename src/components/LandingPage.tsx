@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
+import { Badge } from "./ui/badge";
 import {
   Shield,
   Zap,
@@ -9,6 +10,20 @@ import {
   BarChart3,
   Users,
   Lock,
+  ArrowRight,
+  CheckCircle,
+  Star,
+  TrendingUp,
+  Smartphone,
+  Globe,
+  Award,
+  Clock,
+  Target,
+  Play,
+  ChevronRight,
+  Banknote,
+  ShieldCheck,
+  Rocket,
 } from "lucide-react";
 
 interface LandingPageProps {
@@ -22,20 +37,32 @@ export default function LandingPage({
     {
       icon: Shield,
       title: "Bank-Grade Security",
-      description:
-        "Your funds are protected with military-grade encryption and multi-factor authentication.",
+      description: "Your funds are protected with military-grade encryption and multi-factor authentication.",
     },
     {
       icon: Zap,
       title: "Lightning Fast",
-      description:
-        "Experience instant transfers and real-time balance updates with our modern infrastructure.",
+      description: "Experience instant transfers and real-time balance updates with our modern infrastructure.",
     },
     {
       icon: CreditCard,
       title: "Smart Banking",
-      description:
-        "AI-powered insights help you make better financial decisions and track your spending.",
+      description: "AI-powered insights help you make better financial decisions and track your spending.",
+    },
+    {
+      icon: Globe,
+      title: "Global Access",
+      description: "Bank anywhere in the world with our international network and multi-currency support.",
+    },
+    {
+      icon: Target,
+      title: "Goal Tracking",
+      description: "Set financial goals, track progress, and get personalized tips to achieve your dreams.",
+    },
+    {
+      icon: Award,
+      title: "Award Winning",
+      description: "Recognized by leading financial institutions for innovation and customer satisfaction.",
     },
   ];
 
@@ -47,6 +74,15 @@ export default function LandingPage({
       icon: BarChart3,
     },
     { label: "Secured Assets", value: "₹1000Cr+", icon: Lock },
+  ];
+
+  const benefits = [
+    "Zero Hidden Fees",
+    "Instant Account Opening",
+    "24/7 Customer Support",
+    "Mobile & Web Access",
+    "FDIC Insured",
+    "Biometric Security",
   ];
 
   return (
@@ -279,6 +315,15 @@ export default function LandingPage({
           </motion.div>
         </div>
       </section>
+
+      {/* Footer */}
+      <footer className="px-6 py-8 bg-secondary/50 border-t">
+        <div className="max-w-7xl mx-auto text-center">
+          <p className="text-muted-foreground">
+            © 2025 WTF Bank. All rights reserved LOL
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

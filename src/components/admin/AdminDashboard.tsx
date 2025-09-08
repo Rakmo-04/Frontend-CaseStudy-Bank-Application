@@ -4,12 +4,11 @@ import { Sidebar, SidebarContent, SidebarProvider, SidebarTrigger } from '../ui/
 import { Button } from '../ui/button';
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
-import { Shield, FileCheck, MessageSquare, BarChart3, Users, LogOut, Bell } from 'lucide-react';
+import { FileCheck, MessageSquare, BarChart3, Users, LogOut, Bell } from 'lucide-react';
 import AdminOverview from './AdminOverview';
 import KYCManagement from './KYCManagement';
+import UserManagement from './UserManagement';
 import SupportManagement from './SupportManagement';
-import AdminAnalytics from './AdminAnalytics';
-import AdminAuthTest from './AdminAuthTest';
 
 interface AdminDashboardProps {
   user: any;
@@ -23,9 +22,7 @@ export default function AdminDashboard({ user, onLogout }: AdminDashboardProps) 
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'kyc', label: 'KYC Management', icon: FileCheck },
     { id: 'support', label: 'Support Tickets', icon: MessageSquare },
-    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-    { id: 'users', label: 'User Management', icon: Users },
-    { id: 'auth-test', label: '🔍 Auth Test', icon: Shield }
+    { id: 'users', label: 'User Management', icon: Users }
   ];
 
   const renderActiveView = () => {
@@ -36,12 +33,8 @@ export default function AdminDashboard({ user, onLogout }: AdminDashboardProps) 
         return <KYCManagement user={user} />;
       case 'support':
         return <SupportManagement user={user} />;
-      case 'analytics':
-        return <AdminAnalytics user={user} />;
       case 'users':
-        return <div className="p-8 text-center text-muted-foreground">User Management coming soon...</div>;
-      case 'auth-test':
-        return <AdminAuthTest />;
+        return <UserManagement user={user} />;
       default:
         return <AdminOverview user={user} />;
     }
@@ -57,7 +50,7 @@ export default function AdminDashboard({ user, onLogout }: AdminDashboardProps) 
             <div className="p-6 border-b border-sidebar-border">
               <div className="flex items-center space-x-3">
                 <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center">
-                  <Shield className="w-5 h-5 text-accent-foreground" />
+                  <FileCheck className="w-5 h-5 text-accent-foreground" />
                 </div>
                 <div>
                   <h2 className="font-bold text-sidebar-foreground">WTF Bank Admin</h2>
@@ -98,7 +91,7 @@ export default function AdminDashboard({ user, onLogout }: AdminDashboardProps) 
               <div className="flex items-center space-x-3 p-3 rounded-xl bg-sidebar-accent">
                 <Avatar>
                   <AvatarFallback className="bg-accent text-accent-foreground">
-                    <Shield className="w-4 h-4" />
+                    A
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
@@ -132,7 +125,7 @@ export default function AdminDashboard({ user, onLogout }: AdminDashboardProps) 
                   <Button variant="ghost" className="flex items-center space-x-2">
                     <Avatar className="w-8 h-8">
                       <AvatarFallback>
-                        <Shield className="w-4 h-4" />
+                        A
                       </AvatarFallback>
                     </Avatar>
                     <span className="hidden md:block">{user.name}</span>

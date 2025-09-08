@@ -73,7 +73,12 @@ class EnhancedApiService {
     return apiService.getAllCustomers(params);
   }
 
+  async getCustomerDetails(customerId: number) {
+    return apiService.getCustomerDetails(customerId);
+  }
+
   async getPendingKYCRequests(params?: any) {
+    // Now uses /admin/kyc/pending-documents route
     return apiService.getPendingKYCRequests(params);
   }
 

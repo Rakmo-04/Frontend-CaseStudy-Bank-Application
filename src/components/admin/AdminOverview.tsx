@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
-import { Users, FileCheck, MessageSquare, DollarSign, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
+import { Users, FileCheck, MessageSquare, DollarSign, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Loader2, RefreshCw } from 'lucide-react';
 import { enhancedApiService as apiService } from '../../services/enhanced-api';
 import { toast } from 'sonner';
 
@@ -17,10 +17,69 @@ export default function AdminOverview({ user }: AdminOverviewProps) {
   const [customerData, setCustomerData] = useState<any>(null);
   const [supportTickets, setSupportTickets] = useState<any>(null);
   const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     fetchOverviewData();
+    
+    // Auto-refresh every 30 seconds for real-time data
+    const refreshInterval = setInterval(() => {
+      refreshData();
+    }, 30000);
+
+    return () => clearInterval(refreshInterval);
   }, []);
+
+  const refreshData = async () => {
+    if (isRefreshing) return; // Prevent multiple simultaneous refreshes
+    
+    setIsRefreshing(true);
+    try {
+      console.log('🔄 Auto-refreshing admin overview data...');
+      
+      // Fetch only the essential data for Quick Actions
+      const [kycStats, tickets] = await Promise.all([
+        apiService.getKYCStatistics().catch(() => null),
+        apiService.getAdminSupportTickets({ page: 0, size: 1 }).catch(() => null)
+      ]);
+      
+      if (kycStats) {
+        setKycStatistics(kycStats);
+        setCustomerData({ totalElements: kycStats?.totalCustomers || 0 });
+      }
+      
+      if (tickets) {
+        setSupportTickets(tickets);
+      }
+      
+      setLastUpdate(new Date());
+      console.log('✅ Quick Actions data refreshed successfully');
+    } catch (error) {
+      console.error('❌ Auto-refresh failed:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleQuickAction = (action: string) => {
+    switch (action) {
+      case 'kyc':
+        toast.info('Navigating to KYC Management...');
+        // You can add navigation logic here
+        break;
+      case 'support':
+        toast.info('Navigating to Support Management...');
+        // You can add navigation logic here
+        break;
+      case 'users':
+        toast.info('Navigating to User Management...');
+        // You can add navigation logic here
+        break;
+      default:
+        break;
+    }
+  };
 
   const fetchOverviewData = async () => {
     setLoading(true);
@@ -497,25 +556,107 @@ export default function AdminOverview({ user }: AdminOverviewProps) {
       >
         <Card>
           <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Common administrative tasks</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Quick Actions</CardTitle>
+                <CardDescription>Common administrative tasks</CardDescription>
+              </div>
+              <button
+                onClick={refreshData}
+                disabled={isRefreshing}
+                className="p-2 rounded-md hover:bg-muted transition-colors disabled:opacity-50"
+                title="Refresh data"
+              >
+                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
-                <FileCheck className="w-8 h-8 text-orange-600 mb-2" />
-                <h4 className="font-semibold">Review KYC</h4>
-                <p className="text-sm text-muted-foreground">89 pending verifications</p>
+              <div 
+                onClick={() => handleQuickAction('kyc')}
+                className="p-4 border rounded-lg hover:bg-muted/50 transition-all cursor-pointer group hover:shadow-md hover:scale-[1.02]"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <FileCheck className="w-8 h-8 text-orange-600 group-hover:text-orange-700 transition-colors" />
+                  {loading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                </div>
+                <h4 className="font-semibold group-hover:text-orange-700 transition-colors">Review KYC</h4>
+                <p className="text-sm text-muted-foreground">
+                  {loading ? 'Loading...' : `${kycStatistics?.pendingKyc || 0} pending verifications`}
+                </p>
+                <div className="mt-2 text-xs text-orange-600 font-medium">
+                  {!loading && kycStatistics?.pendingKyc > 0 && 'Action Required'}
+                </div>
+                {!loading && kycStatistics?.pendingKyc > 0 && (
+                  <div className="mt-2 text-xs text-orange-500">
+                    Click to review pending documents
+                  </div>
+                )}
               </div>
-              <div className="p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
-                <MessageSquare className="w-8 h-8 text-purple-600 mb-2" />
-                <h4 className="font-semibold">Support Tickets</h4>
-                <p className="text-sm text-muted-foreground">156 open tickets</p>
+              
+              <div 
+                onClick={() => handleQuickAction('support')}
+                className="p-4 border rounded-lg hover:bg-muted/50 transition-all cursor-pointer group hover:shadow-md hover:scale-[1.02]"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <MessageSquare className="w-8 h-8 text-purple-600 group-hover:text-purple-700 transition-colors" />
+                  {loading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                </div>
+                <h4 className="font-semibold group-hover:text-purple-700 transition-colors">Support Tickets</h4>
+                <p className="text-sm text-muted-foreground">
+                  {loading ? 'Loading...' : `${supportTickets?.totalElements || 0} open tickets`}
+                </p>
+                <div className="mt-2 text-xs text-purple-600 font-medium">
+                  {!loading && supportTickets?.totalElements > 0 && 'Needs Attention'}
+                </div>
+                {!loading && supportTickets?.totalElements > 0 && (
+                  <div className="mt-2 text-xs text-purple-500">
+                    Click to manage support requests
+                  </div>
+                )}
               </div>
-              <div className="p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
-                <Users className="w-8 h-8 text-blue-600 mb-2" />
-                <h4 className="font-semibold">User Management</h4>
-                <p className="text-sm text-muted-foreground">Manage user accounts</p>
+              
+              <div 
+                onClick={() => handleQuickAction('users')}
+                className="p-4 border rounded-lg hover:bg-muted/50 transition-all cursor-pointer group hover:shadow-md hover:scale-[1.02]"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <Users className="w-8 h-8 text-blue-600 group-hover:text-blue-700 transition-colors" />
+                  {loading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                </div>
+                <h4 className="font-semibold group-hover:text-blue-700 transition-colors">User Management</h4>
+                <p className="text-sm text-muted-foreground">
+                  {loading ? 'Loading...' : `${customerData?.totalElements || 0} total users`}
+                </p>
+                <div className="mt-2 text-xs text-blue-600 font-medium">
+                  {!loading && customerData?.totalElements > 0 && 'Active Users'}
+                </div>
+                {!loading && customerData?.totalElements > 0 && (
+                  <div className="mt-2 text-xs text-blue-500">
+                    Click to manage user accounts
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Real-time Status Indicators */}
+            <div className="mt-4 pt-4 border-t">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-1">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span>Live Data</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <span>Auto-refresh</span>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2 text-xs">
+                  <span>Last updated: {lastUpdate.toLocaleTimeString()}</span>
+                  {isRefreshing && <Loader2 className="w-3 h-3 animate-spin" />}
+                </div>
               </div>
             </div>
           </CardContent>
