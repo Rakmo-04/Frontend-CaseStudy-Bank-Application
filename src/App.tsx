@@ -9,8 +9,16 @@ import CustomerDashboard from './components/customer/CustomerDashboard';
 import AdminDashboard from './components/admin/AdminDashboard';
 import { enhancedApiService as apiService } from './services/enhanced-api';
 import { ENV } from './utils/environment';
+import ChatView from './components/customer/ChatView';
 
-type AppView = 'landing' | 'customer-login' | 'customer-register' | 'admin-login' | 'customer-dashboard' | 'admin-dashboard';
+type AppView =
+  | 'landing'
+  | 'customer-login'
+  | 'customer-register'
+  | 'admin-login'
+  | 'customer-dashboard'
+  | 'admin-dashboard'
+  | 'live-chat';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<AppView>('landing');
@@ -23,7 +31,7 @@ export default function App() {
       try {
         if (apiService.isAuthenticated()) {
           const authType = apiService.getAuthType();
-          
+
           if (authType === 'customer') {
             try {
               const customerProfile = await apiService.getCurrentCustomer();
@@ -31,10 +39,8 @@ export default function App() {
               const userData = {
                 id: customerProfile.customerId,
                 name: `${customerProfile.firstName} ${customerProfile.lastName}`,
-                // email: customerProfile.email,
                 type: 'customer',
-                // kycStatus: customerProfile.kycStatus,
-                ...customerProfile
+                ...customerProfile,
               };
               setUser(userData);
               setCurrentView('customer-dashboard');
@@ -47,7 +53,7 @@ export default function App() {
             const userData = {
               type: 'admin',
               name: 'Admin User',
-              permissions: ['kyc_management', 'support_management', 'analytics']
+              permissions: ['kyc_management', 'support_management', 'analytics'],
             };
             setUser(userData);
             setCurrentView('admin-dashboard');
@@ -67,45 +73,66 @@ export default function App() {
   const pageVariants = {
     initial: { opacity: 0, y: 20 },
     in: { opacity: 1, y: 0 },
-    out: { opacity: 0, y: -20 }
+    out: { opacity: 0, y: -20 },
   };
 
   const pageTransition = {
     type: 'tween',
     ease: 'anticipate',
-    duration: 0.3
+    duration: 0.3,
   };
 
   const renderCurrentView = () => {
     switch (currentView) {
       case 'landing':
         return <LandingPage onNavigate={setCurrentView} />;
+
       case 'customer-login':
         return <CustomerLogin onNavigate={setCurrentView} onLogin={setUser} />;
+
       case 'customer-register':
         return <CustomerRegister onNavigate={setCurrentView} onRegister={setUser} />;
+
       case 'admin-login':
         return <AdminLogin onNavigate={setCurrentView} onLogin={setUser} />;
+
       case 'customer-dashboard':
-        return <CustomerDashboard user={user} onLogout={async () => { 
-          try {
-            await apiService.logout();
-          } catch (error) {
-            console.error('Logout error:', error);
-          }
-          setUser(null); 
-          setCurrentView('landing'); 
-        }} />;
+        return (
+          <CustomerDashboard
+            user={user}
+            onNavigate={setCurrentView}   // ✅ pass onNavigate here
+            onLogout={async () => {
+              try {
+                await apiService.logout();
+              } catch (error) {
+                console.error('Logout error:', error);
+              }
+              setUser(null);
+              setCurrentView('landing');
+            }}
+          />
+        );
+
       case 'admin-dashboard':
-        return <AdminDashboard user={user} onLogout={async () => { 
-          try {
-            await apiService.logout();
-          } catch (error) {
-            console.error('Logout error:', error);
-          }
-          setUser(null); 
-          setCurrentView('landing'); 
-        }} />;
+        return (
+          <AdminDashboard
+            user={user}
+            onNavigate={setCurrentView}   // ✅ pass onNavigate here too if needed
+            onLogout={async () => {
+              try {
+                await apiService.logout();
+              } catch (error) {
+                console.error('Logout error:', error);
+              }
+              setUser(null);
+              setCurrentView('landing');
+            }}
+          />
+        );
+
+      case 'live-chat':
+  return <ChatView onBack={() => setCurrentView("customer-dashboard")} />;
+
       default:
         return <LandingPage onNavigate={setCurrentView} />;
     }
