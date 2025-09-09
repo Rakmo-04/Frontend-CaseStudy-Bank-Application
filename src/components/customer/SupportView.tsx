@@ -11,13 +11,15 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { MessageSquare, Plus, Clock, CheckCircle, XCircle, AlertCircle, Phone, Mail, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { apiService } from "../../services/api"; 
+import { apiService } from "../../services/api";
+import { useNavigate } from 'react-router-dom';
 
 interface SupportViewProps {
   user: any;
+    onNavigate: (view: string) => void;  
 }
 
-export default function SupportView() {
+export default function SupportView({ user, onNavigate }: SupportViewProps ) {
   const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -28,6 +30,7 @@ export default function SupportView() {
     priority: "",
     description: "",
   });
+
 
   const categories = [
     { value: 'technical', label: 'Technical Issues' },
@@ -147,7 +150,7 @@ export default function SupportView() {
                   onChange={(e) => setNewTicket({ ...newTicket, subject: e.target.value })}
                 />
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Category *</Label>
@@ -164,7 +167,7 @@ export default function SupportView() {
                     </SelectContent>
                   </Select>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label>Priority *</Label>
                   <Select value={newTicket.priority} onValueChange={(value) => setNewTicket({ ...newTicket, priority: value })}>
@@ -181,7 +184,7 @@ export default function SupportView() {
                   </Select>
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="description">Description *</Label>
                 <Textarea
@@ -192,7 +195,7 @@ export default function SupportView() {
                   rows={4}
                 />
               </div>
-              
+
               <Button onClick={handleCreateTicket} className="w-full">
                 Create Ticket
               </Button>
@@ -217,7 +220,11 @@ export default function SupportView() {
           </Card>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
           <Card className="hover:shadow-lg transition-shadow cursor-pointer">
             <CardContent className="p-6 text-center">
               <MessageCircle className="w-12 h-12 text-primary mx-auto mb-4" />
@@ -225,10 +232,18 @@ export default function SupportView() {
               <p className="text-sm text-muted-foreground mb-4">
                 Get instant help from our chat team
               </p>
-              <Button variant="outline" className="w-full">Start Chat</Button>
+              {/* Use onNavigate to switch to ChatView */}
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => onNavigate('live-chat')} // <-- pass onNavigate from parent
+              >
+                Start Chat
+              </Button>
             </CardContent>
           </Card>
         </motion.div>
+
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <Card className="hover:shadow-lg transition-shadow cursor-pointer">

@@ -98,6 +98,22 @@ interface ApiError {
 class ApiService {
   private tokenManager = TokenManager.getInstance();
 
+  // inside apiService
+private async makeRequest2<T>(url: string, options: RequestInit = {}): Promise<T | string> {
+  const response = await fetch(`http://localhost:8080${url}`, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
+  });
+
+  const contentType = response.headers.get("content-type");
+  if (contentType && contentType.includes("application/json")) {
+    return (await response.json()) as T;
+  } else {
+    return await response.text();   // ✅ handle plain text
+  }
+}
+
+
   private async makeRequest<T>(
     endpoint: string,
     options: RequestInit = {}
@@ -1230,6 +1246,32 @@ async downloadAadharDocument(aadharDocumentId: string) {
     if (!response.ok) throw new Error('Failed to download PAN document');
     return response.blob() as Promise<Blob>;
   }
+
+async askQuestion(question: string): Promise<string> {
+  const token = localStorage.getItem("auth_token");
+
+  const response = await fetch("http://localhost:8080/api/qna", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,  // 🔑 add JWT
+    },
+    body: JSON.stringify({ question }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`API error ${response.status}`);
+  }
+
+  const text = await response.text();  // 👈 because backend sometimes returns plain string
+
+  try {
+    const data = JSON.parse(text);
+    return data.answer || text;
+  } catch {
+    return text; // if not JSON, just return raw
+  }
+}
 
 
 }
